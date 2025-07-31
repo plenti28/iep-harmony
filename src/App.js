@@ -1,4 +1,4 @@
-importimport React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   BrainCircuit,
   FileText,
@@ -630,12 +630,13 @@ export default function App() {
     formData.append("file", file);
     showTempNotification(`Uploading and processing ${file.name}...`);
     try {
-      const response = await fetch("https://iep-harmony-backend-1.onrender.com/upload", {
-  //...
-});
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(
+        "https://iep-harmony-backend.onrender.com/upload",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "File upload failed");
