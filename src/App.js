@@ -439,7 +439,7 @@ export default function App() {
     const schema = { type: "OBJECT", properties: { "analysis": { type: "ARRAY", items: { type: "OBJECT", properties: { "accommodation": { "type": "STRING" }, "status": { "type": "STRING", "enum": ["Met", "Partially Met", "Not Met"] }, "reason": { "type": "STRING" }, "suggestion": { "type": "STRING" } }, "propertyOrdering": ["accommodation", "status", "reason", "suggestion"], required: ["accommodation", "status", "reason"] } } }, required: ["analysis"] };
 
     try {
-        const apiKey = "";
+        const apiKey = process.env.REACT_APP_GEMINI_API_KEY || "";
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
         const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", responseSchema: schema, } };
         const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
