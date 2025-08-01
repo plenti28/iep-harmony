@@ -109,6 +109,12 @@ export default function App() {
   const accommodationChangeTimeout = useRef(null);
   const lessonPlanChangeTimeout = useRef(null);
   const saveStatusTimeout = useRef(null);
+  
+  // Derived state variables
+  const selectedClass = classes.find(c => c.id === selectedClassId);
+  const sortedClasses = [...classes].sort((a, b) => a.name.localeCompare(b.name));
+  const selectedLessonPlan = lessonPlans.find(lp => lp.id === selectedLessonPlanId);
+
 
   // --- FIREBASE INITIALIZATION & DATA LOADING ---
   useEffect(() => {
@@ -177,10 +183,6 @@ export default function App() {
     }
   }, []);
 
-  const selectedClass = classes.find(c => c.id === selectedClassId);
-  const sortedClasses = [...classes].sort((a, b) => a.name.localeCompare(b.name));
-  const selectedLessonPlan = lessonPlans.find(lp => lp.id === selectedLessonPlanId);
-
   // Effect to manage selected class
   useEffect(() => {
     if (classes.length > 0 && (!selectedClassId || !classes.some(c => c.id === selectedClassId))) {
@@ -212,13 +214,14 @@ export default function App() {
     }
   }, [lessonPlans]);
 
-  // Effect to update the text area and analysis report when the selected lesson plan changes
+  // Effect to update the text area and analysis report ONLY when the selected lesson plan ID changes
   useEffect(() => {
-    if (selectedLessonPlan) {
-        setLessonPlanContent(selectedLessonPlan.content || '');
-        if (selectedLessonPlan.analysisResult) {
+    const currentPlan = lessonPlans.find(lp => lp.id === selectedLessonPlanId);
+    if (currentPlan) {
+        setLessonPlanContent(currentPlan.content || '');
+        if (currentPlan.analysisResult) {
             try {
-                setAnalysisResult(JSON.parse(selectedLessonPlan.analysisResult));
+                setAnalysisResult(JSON.parse(currentPlan.analysisResult));
             } catch(e) {
                 console.error("Failed to parse saved analysis result:", e);
                 setAnalysisResult(null);
@@ -230,7 +233,7 @@ export default function App() {
         setLessonPlanContent('');
         setAnalysisResult(null);
     }
-  }, [selectedLessonPlan]);
+  }, [selectedLessonPlanId, lessonPlans]);
 
 
   const showTempNotification = (message, isError = false) => {
