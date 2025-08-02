@@ -1,4 +1,3 @@
-// Working App.js - Compatible with current setup
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrainCircuit, FileText, AlertCircle, CheckCircle, XCircle, ListChecks, UploadCloud, Link, Plus, Trash2, Edit, ChevronDown, ChevronUp, Check, Download } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
@@ -11,6 +10,7 @@ const initialClasses = [
   { id: '2', name: 'Period 3 - Creative Writing', accommodations: 'Option for verbal responses\nUse of spell-checker\nGraphic organizer for multi-step projects' },
   { id: '3', name: 'Period 4 - English 9', accommodations: 'Extended time on tests (1.5x)\nPreferential seating\nFrequent breaks' },
 ];
+
 const initialLessonPlans = {
   '1': [{ id: 'lp1', name: 'Foreshadowing in "The Tell-Tale Heart"', content: 'Objective: Students will analyze the use of foreshadowing in "The Tell-Tale Heart".\n\nActivities:\n1. Warm-up: Define foreshadowing.\n2. Read the story aloud as a class.\n3. In small groups, find three examples of foreshadowing and discuss their effect.' }],
   '2': [{ id: 'lp2', name: 'Show, Don\'t Tell Practice', content: 'Objective: Students will practice "show, don\'t tell" in their writing.\n\nActivity: Write a one-page scene describing a character who is nervous, without using the word "nervous".' }],
@@ -30,6 +30,8 @@ const firebaseConfig = {
 
 const appId = 'iep-harmony-app';
 
+// --- UTILITY FUNCTIONS ---
+
 // Keep server warm function
 const keepServerWarm = async () => {
   try {
@@ -37,76 +39,6 @@ const keepServerWarm = async () => {
   } catch (error) {
     console.log('Server warming failed - server may be sleeping');
   }
-};
-
-// Enhanced Modal component with better text selection handling
-const Modal = ({ isOpen, onClose, children, preventCloseOnOutsideClick = false }) => {
-    const [isMouseDown, setIsMouseDown] = useState(false);
-    
-    if (!isOpen) return null;
-
-    const handleMouseDown = (e) => {
-        if (e.target === e.currentTarget && !preventCloseOnOutsideClick) {
-            setIsMouseDown(true);
-        }
-    };
-
-    const handleMouseUp = (e) => {
-        if (e.target === e.currentTarget && isMouseDown && !preventCloseOnOutsideClick) {
-            onClose();
-        }
-        setIsMouseDown(false);
-    };
-
-    const handleMouseLeave = () => {
-        setIsMouseDown(false);
-    };
-
-    return (
-        <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" 
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-        >
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-                {children}
-            </div>
-        </div>
-    );
-};
-
-// Enhanced file processing
-const processFileUpload = async (file, mode, showNotification, handleFileContent, setIsProcessingFile) => {
-    setIsProcessingFile(true);
-    showNotification(`Processing ${file.name}...`);
-    
-    try {
-        // Warm server first
-        await keepServerWarm();
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const response = await fetch("https://iep-harmony-backend.onrender.com/upload", {
-            method: "POST",
-            body: formData,
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'File upload failed');
-        }
-        
-        const data = await response.json();
-        handleFileContent(data.text, mode);
-        showNotification("File processed successfully!");
-    } catch (error) {
-        console.error('File processing error:', error);
-        showNotification(`Could not process file: ${error.message}`, true);
-    } finally {
-        setIsProcessingFile(false);
-    }
 };
 
 // Enhanced AI Analysis with resource generation
@@ -252,7 +184,78 @@ const downloadResource = (resource) => {
     URL.revokeObjectURL(url);
 };
 
+// Enhanced file processing
+const processFileUpload = async (file, mode, showNotification, handleFileContent, setIsProcessingFile) => {
+    setIsProcessingFile(true);
+    showNotification(`Processing ${file.name}...`);
+    
+    try {
+        // Warm server first
+        await keepServerWarm();
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch("https://iep-harmony-backend.onrender.com/upload", {
+            method: "POST",
+            body: formData,
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'File upload failed');
+        }
+        
+        const data = await response.json();
+        handleFileContent(data.text, mode);
+        showNotification("File processed successfully!");
+    } catch (error) {
+        console.error('File processing error:', error);
+        showNotification(`Could not process file: ${error.message}`, true);
+    } finally {
+        setIsProcessingFile(false);
+    }
+};
+
 // --- REUSABLE COMPONENTS ---
+
+// Enhanced Modal component with better text selection handling
+const Modal = ({ isOpen, onClose, children, preventCloseOnOutsideClick = false }) => {
+    const [isMouseDown, setIsMouseDown] = useState(false);
+    
+    if (!isOpen) return null;
+
+    const handleMouseDown = (e) => {
+        if (e.target === e.currentTarget && !preventCloseOnOutsideClick) {
+            setIsMouseDown(true);
+        }
+    };
+
+    const handleMouseUp = (e) => {
+        if (e.target === e.currentTarget && isMouseDown && !preventCloseOnOutsideClick) {
+            onClose();
+        }
+        setIsMouseDown(false);
+    };
+
+    const handleMouseLeave = () => {
+        setIsMouseDown(false);
+    };
+
+    return (
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" 
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+        >
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                {children}
+            </div>
+        </div>
+    );
+};
+
 const FileUploadZone = ({ onFileUpload, fileType }) => {
   const [isDragging, setIsDragging] = useState(false);
   const handleDrag = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(e.type === 'dragenter' || e.type === 'dragover'); };
@@ -397,12 +400,14 @@ function AnalysisReport({ result }) {
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
+  // Core state
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [lessonPlans, setLessonPlans] = useState([]);
   const [selectedLessonPlanId, setSelectedLessonPlanId] = useState(null);
   const [lessonPlanContent, setLessonPlanContent] = useState('');
   
+  // Analysis state
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -414,7 +419,7 @@ export default function App() {
   const [db, setDb] = useState(null);
   const [userId, setUserId] = useState(null);
 
-  // Modal state
+  // Modal state - ALL REQUIRED MODALS
   const [isAddClassModalOpen, setAddClassModalOpen] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [isDeleteClassModalOpen, setDeleteClassModalOpen] = useState(false);
@@ -429,6 +434,7 @@ export default function App() {
   const [isRenameAndUploadModalOpen, setRenameAndUploadModalOpen] = useState(false);
   const [renameLessonPlanTitle, setRenameLessonPlanTitle] = useState('');
 
+  // Refs for timeouts
   const accommodationChangeTimeout = useRef(null);
   const lessonPlanChangeTimeout = useRef(null);
   const saveStatusTimeout = useRef(null);
@@ -539,7 +545,7 @@ export default function App() {
     }
   }, [selectedLessonPlan]);
 
-  // Notification system
+  // --- NOTIFICATION SYSTEM ---
   const showTempNotification = (message, isError = false) => {
     if (isError) {
       setError(message);
@@ -550,6 +556,7 @@ export default function App() {
     }
   };
 
+  // --- FILE HANDLING ---
   const handleFileContent = (content, mode) => {
     if (mode === 'replace' || mode === 'merge') {
       const current = mode === 'merge' ? (selectedClass?.accommodations || '') : '';
@@ -622,7 +629,7 @@ export default function App() {
     }
   };
 
-  // Enhanced AI Analysis function
+  // --- AI ANALYSIS ---
   const handleAnalyze = async () => {
     if (!selectedClass || !lessonPlanContent) {
         showTempNotification("Please select a class and lesson plan.", true);
@@ -658,7 +665,7 @@ export default function App() {
     }
   };
 
-  // Other handlers (existing functions)
+  // --- CLASS MANAGEMENT ---
   const openDeleteClassModal = (classId) => {
       const cls = classes.find(c => c.id === classId);
       if (cls) {
@@ -692,6 +699,7 @@ export default function App() {
       }
   };
 
+  // --- LESSON PLAN MANAGEMENT ---
   const handleAddNewLessonPlan = async () => {
       if (newLessonPlanName.trim() && selectedClassId && db && userId) {
           try {
@@ -724,6 +732,7 @@ export default function App() {
       }
   };
 
+  // --- DATA CHANGE HANDLERS ---
   const handleAccommodationChange = (text) => {
     setClasses(classes.map(c => c.id === selectedClassId ? { ...c, accommodations: text } : c));
     setSaveStatus('saving');
@@ -760,8 +769,10 @@ export default function App() {
     }, 750);
   };
 
+  // --- RENDER ---
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
+      {/* Notifications */}
       {notification && <div className="fixed top-5 right-5 bg-blue-500 text-white py-2 px-4 rounded-lg shadow-lg animate-fade-in-out z-50">{notification}</div>}
       {error && <div className="fixed top-5 right-5 bg-red-500 text-white py-2 px-4 rounded-lg shadow-lg animate-fade-in-out z-50">{error}</div>}
       
@@ -773,6 +784,7 @@ export default function App() {
           </div>
       )}
       
+      {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3"><BrainCircuit className="h-8 w-8 text-indigo-600" /><h1 className="text-2xl font-bold text-gray-900">IEP Harmony</h1></div>
@@ -783,8 +795,11 @@ export default function App() {
         </div>
       </header>
 
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Left Panel - Classes */}
           <div className="lg-col-span-1 space-y-6">
             <div className="bg-white p-5 rounded-xl shadow-sm">
               <h2 className="text-lg font-semibold flex items-center mb-4"><ListChecks className="mr-2 text-indigo-500"/>Class Accommodations</h2>
@@ -812,6 +827,8 @@ export default function App() {
               </div>
             </div>
           </div>
+          
+          {/* Right Panel - Lesson Plans */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white p-5 rounded-xl shadow-sm">
               <div className="flex justify-between items-center mb-4">
@@ -833,12 +850,16 @@ export default function App() {
                 </button>
               </div>
             </div>
+            
+            {/* Analysis Results */}
             {analysisResult && <AnalysisReport result={analysisResult} />}
           </div>
         </div>
       </main>
 
-      {/* Modals */}
+      {/* ALL MODALS */}
+      
+      {/* Add Class Modal */}
       <Modal isOpen={isAddClassModalOpen} onClose={() => setAddClassModalOpen(false)}>
         <h3 className="text-lg font-semibold mb-4">Add New Class</h3>
         <input type="text" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="e.g., Period 5 - Geometry" className="w-full p-2 border border-gray-300 rounded-md mb-4" autoFocus />
@@ -848,6 +869,7 @@ export default function App() {
         </div>
       </Modal>
 
+      {/* Delete Class Modal */}
       <Modal isOpen={isDeleteClassModalOpen} onClose={() => setDeleteClassModalOpen(false)}>
         <h3 className="text-lg font-semibold mb-2">Confirm Deletion</h3>
         <p className="text-gray-600 mb-4">Are you sure you want to delete the class "{classToDelete?.name}"? This action cannot be undone.</p>
@@ -857,6 +879,7 @@ export default function App() {
         </div>
       </Modal>
 
+      {/* Add Lesson Plan Modal */}
       <Modal isOpen={isAddLessonPlanModalOpen} onClose={() => setAddLessonPlanModalOpen(false)}>
         <h3 className="text-lg font-semibold mb-4">Add New Lesson Plan</h3>
         <input type="text" value={newLessonPlanName} onChange={(e) => setNewLessonPlanName(e.target.value)} placeholder="e.g., Unit 1: The Odyssey" className="w-full p-2 border border-gray-300 rounded-md mb-4" autoFocus />
@@ -866,6 +889,7 @@ export default function App() {
         </div>
       </Modal>
       
+      {/* Delete Lesson Plan Modal */}
       <Modal isOpen={isDeleteLessonPlanModalOpen} onClose={() => setDeleteLessonPlanModalOpen(false)}>
         <h3 className="text-lg font-semibold mb-2">Confirm Deletion</h3>
         <p className="text-gray-600 mb-4">Are you sure you want to delete the lesson plan "{lessonPlanToDelete?.name}"? This action cannot be undone.</p>
@@ -875,6 +899,7 @@ export default function App() {
         </div>
       </Modal>
       
+      {/* Upload Accommodation Modal */}
       <Modal isOpen={isUploadAccommodationModalOpen} onClose={() => setUploadAccommodationModalOpen(false)}>
         <h3 className="text-lg font-semibold mb-4">Update Accommodations</h3>
         <p className="text-gray-600 mb-4">How would you like to add the accommodations from the uploaded file?</p>
@@ -884,6 +909,7 @@ export default function App() {
         </div>
       </Modal>
 
+      {/* Upload Lesson Plan Modal */}
       <Modal isOpen={isUploadLessonPlanModalOpen} onClose={() => setUploadLessonPlanModalOpen(false)}>
         <h3 className="text-lg font-semibold mb-4">Update Lesson Plan Content</h3>
         <p className="text-gray-600 mb-4">How would you like to add the content from the uploaded file to the current lesson plan?</p>
@@ -893,6 +919,7 @@ export default function App() {
         </div>
       </Modal>
       
+      {/* Rename and Upload Modal */}
       <Modal isOpen={isRenameAndUploadModalOpen} onClose={() => setRenameAndUploadModalOpen(false)} preventCloseOnOutsideClick={true}>
         <h3 className="text-lg font-semibold mb-4">Title Your Lesson Plan</h3>
         <input 
