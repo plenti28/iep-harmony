@@ -16,7 +16,6 @@ const initialLessonPlans = {
   '3': [{ id: 'lp3', name: 'Intro to Shakespeare', content: 'Objective: Introduce key themes and language in Shakespeare\'s works.' }],
 };
 
-
 // --- FIREBASE CONFIG (Paste your configuration object here) ---
 const firebaseConfig = {
   apiKey: "AIzaSyAVwrI84WWe2DCygVBeajXkSbMeUgAqKAM",
@@ -28,9 +27,47 @@ const firebaseConfig = {
   measurementId: "G-6HRVNZF1R0"
 };
 
-
 // This can be a unique name for your app instance
 const appId = 'iep-harmony-app';
+
+// UPDATED AI Analysis Function - Now calls your API endpoint
+const runAIAnalysis = async (accommodations, lessonContent) => {
+  try {
+    console.log('Starting AI Analysis...');
+    
+    const response = await fetch('/api/ai-analysis', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        accommodations,
+        lessonContent
+      })
+    });
+
+    if (!response.ok) {
+      console.error('API Response Error:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('Error details:', errorText);
+      throw new Error(`AI Analysis failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('AI Analysis successful:', data);
+    
+    return data.results;
+
+  } catch (error) {
+    console.error('AI Analysis Error:', error);
+    
+    // Show user-friendly error message
+    alert(`AI Analysis encountered an error: ${error.message}. Please try again or contact support if the issue persists.`);
+    
+    // Return empty array instead of throwing to prevent UI crash
+    return [];
+  }
+};
 
 // --- REUSABLE COMPONENTS ---
 const FileUploadZone = ({ onFileUpload, fileType }) => {
@@ -105,7 +142,6 @@ export default function App() {
   const [isRenameAndUploadModalOpen, setRenameAndUploadModalOpen] = useState(false);
   const [renameLessonPlanTitle, setRenameLessonPlanTitle] = useState('');
 
-
   const accommodationChangeTimeout = useRef(null);
   const lessonPlanChangeTimeout = useRef(null);
   const saveStatusTimeout = useRef(null);
@@ -114,7 +150,6 @@ export default function App() {
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const sortedClasses = [...classes].sort((a, b) => a.name.localeCompare(b.name));
   const selectedLessonPlan = lessonPlans.find(lp => lp.id === selectedLessonPlanId);
-
 
   // --- FIREBASE INITIALIZATION & DATA LOADING ---
   useEffect(() => {
@@ -183,540 +218,634 @@ export default function App() {
     }
   }, []);
 
-  // Effect to manage selected class
+  // Load lesson plans for selected class
   useEffect(() => {
-    if (classes.length > 0 && (!selectedClassId || !classes.some(c => c.id === selectedClassId))) {
-      setSelectedClassId(sortedClasses[0].id);
-    }
-  }, [classes, sortedClasses]);
-
-  // Effect to load lesson plans for the selected class
-  useEffect(() => {
-    if (selectedClassId && db && userId) {
-      const lessonPlansCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans');
-      const unsubscribe = onSnapshot(lessonPlansCollectionRef, (querySnapshot) => {
-        const plans = [];
-        querySnapshot.forEach(doc => plans.push({ id: doc.id, ...doc.data() }));
-        setLessonPlans(plans.sort((a, b) => a.name.localeCompare(b.name)));
+    if (db && userId && selectedClassId) {
+      const lessonPlansRef = collection(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans');
+      const unsubscribe = onSnapshot(lessonPlansRef, (querySnapshot) => {
+        const plansData = [];
+        querySnapshot.forEach((doc) => {
+          plansData.push({ id: doc.id, ...doc.data() });
+        });
+        setLessonPlans(plansData);
       });
       return () => unsubscribe();
-    } else {
-      setLessonPlans([]);
     }
-  }, [selectedClassId, db, userId]);
+  }, [db, userId, selectedClassId]);
 
-  // Effect to manage selected lesson plan
+  // Load lesson plan content
   useEffect(() => {
-    if (lessonPlans.length > 0 && (!selectedLessonPlanId || !lessonPlans.some(lp => lp.id === selectedLessonPlanId))) {
-      setSelectedLessonPlanId(lessonPlans[0].id);
-    } else if (lessonPlans.length === 0) {
-      setSelectedLessonPlanId(null);
-    }
-  }, [lessonPlans]);
-
-  // Effect to update the text area and analysis report ONLY when the selected lesson plan ID changes
-  useEffect(() => {
-    const currentPlan = lessonPlans.find(lp => lp.id === selectedLessonPlanId);
-    if (currentPlan) {
-        setLessonPlanContent(currentPlan.content || '');
-        if (currentPlan.analysisResult) {
-            try {
-                setAnalysisResult(JSON.parse(currentPlan.analysisResult));
-            } catch(e) {
-                console.error("Failed to parse saved analysis result:", e);
-                setAnalysisResult(null);
-            }
-        } else {
-            setAnalysisResult(null);
+    const plan = lessonPlans.find(lp => lp.id === selectedLessonPlanId);
+    if (plan) {
+      setLessonPlanContent(plan.content || '');
+      if (plan.analysisResult) {
+        try {
+          setAnalysisResult(JSON.parse(plan.analysisResult));
+        } catch {
+          setAnalysisResult(null);
         }
-    } else {
-        setLessonPlanContent('');
+      } else {
         setAnalysisResult(null);
+      }
+    } else {
+      setLessonPlanContent('');
+      setAnalysisResult(null);
     }
   }, [selectedLessonPlanId, lessonPlans]);
 
-
-  const showTempNotification = (message, isError = false) => {
-    if (isError) { setError(message); setTimeout(() => setError(null), 5000); } 
-    else { setNotification(message); setTimeout(() => setNotification(null), 3000); }
-  };
-
-  // --- CRUD OPERATIONS ---
-  const handleAddNewClass = async () => {
-    if (newClassName.trim() && db && userId) {
-      try {
-        const classesCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'classes');
-        const newClassRef = await addDoc(classesCollectionRef, { name: newClassName.trim(), accommodations: '' });
-        const lessonPlansRef = collection(newClassRef, 'lessonPlans');
-        await addDoc(lessonPlansRef, { name: 'New Lesson Plan', content: '', analysisResult: null });
-        setSelectedClassId(newClassRef.id);
-        showTempNotification(`Class "${newClassName.trim()}" created!`);
-        setNewClassName('');
-        setAddClassModalOpen(false);
-      } catch (e) { showTempNotification("Error creating class.", true); console.error(e); }
-    }
-  };
-
-  const openDeleteClassModal = (classId) => {
-      const classInfo = classes.find(c => c.id === classId);
-      if (classInfo) {
-          setClassToDelete(classInfo);
-          setDeleteClassModalOpen(true);
-      }
-  };
-
-  const confirmDeleteClass = async () => {
-    if (classToDelete && db && userId) {
-      try {
-        await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'classes', classToDelete.id));
-        showTempNotification(`Class "${classToDelete.name}" deleted.`);
-        setDeleteClassModalOpen(false); setClassToDelete(null);
-      } catch (e) { showTempNotification("Error deleting class.", true); console.error(e); }
-    }
-  };
-  
-  const handleAddNewLessonPlan = async () => {
-    if (newLessonPlanName.trim() && selectedClassId && db && userId) {
+  // Auto-save lesson plan content with debouncing
+  useEffect(() => {
+    if (selectedLessonPlanId && db && userId && selectedClassId) {
+      if (accommodationChangeTimeout.current) clearTimeout(accommodationChangeTimeout.current);
+      accommodationChangeTimeout.current = setTimeout(async () => {
         try {
-            const lessonPlansRef = collection(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans');
-            const newDoc = await addDoc(lessonPlansRef, { name: newLessonPlanName.trim(), content: '', analysisResult: null });
-            setSelectedLessonPlanId(newDoc.id);
-            showTempNotification(`Lesson plan "${newLessonPlanName.trim()}" created!`);
-            setNewLessonPlanName('');
-            setAddLessonPlanModalOpen(false);
-        } catch(e) { showTempNotification("Error creating lesson plan.", true); console.error(e); }
-    }
-  };
-  
-  const openDeleteLessonPlanModal = () => {
-      if (selectedLessonPlan) {
-          setLessonPlanToDelete(selectedLessonPlan);
-          setDeleteLessonPlanModalOpen(true);
-      }
-  };
-
-  const confirmDeleteLessonPlan = async () => {
-      if (lessonPlanToDelete) {
-          try {
-              await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', lessonPlanToDelete.id));
-              showTempNotification("Lesson plan deleted.");
-              setDeleteLessonPlanModalOpen(false);
-              setLessonPlanToDelete(null);
-          } catch(e) { showTempNotification("Error deleting lesson plan.", true); console.error(e); }
-      }
-  };
-
-  const handleAccommodationChange = (text) => {
-    const currentClassId = selectedClassId;
-    setClasses(classes.map(c => c.id === currentClassId ? { ...c, accommodations: text } : c));
-    setSaveStatus('saving');
-    if (accommodationChangeTimeout.current) clearTimeout(accommodationChangeTimeout.current);
-    accommodationChangeTimeout.current = setTimeout(async () => {
-        if (db && userId && currentClassId) {
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', currentClassId);
-            try { 
-                await setDoc(docRef, { accommodations: text }, { merge: true });
-                setSaveStatus('saved');
-                if(saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
-                saveStatusTimeout.current = setTimeout(() => setSaveStatus('idle'), 2000);
-            } 
-            catch (e) { console.error("Autosave error:", e); setSaveStatus('idle');}
-        }
-    }, 750);
-  };
-
-  const handleLessonPlanContentChange = (text) => {
-    setLessonPlanContent(text);
-    setSaveStatus('saving');
-    if (lessonPlanChangeTimeout.current) clearTimeout(lessonPlanChangeTimeout.current);
-    lessonPlanChangeTimeout.current = setTimeout(async () => {
-        if (db && userId && selectedClassId && selectedLessonPlanId) {
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
-            try { 
-                await updateDoc(docRef, { content: text, analysisResult: null });
-                setSaveStatus('saved');
-                if(saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
-                saveStatusTimeout.current = setTimeout(() => setSaveStatus('idle'), 2000);
-            } 
-            catch (e) { console.error("Autosave error for lesson plan:", e); setSaveStatus('idle');}
-        }
-    }, 750);
-  };
-
-  const handleFileUpload = (file, fileType) => {
-    if (fileType === 'accommodations') {
-        if (!selectedClass?.accommodations?.trim()) {
-            processFileUpload(file, 'replace');
-        } else {
-            setPendingFile(file);
-            setUploadAccommodationModalOpen(true);
-        }
-    } else if (fileType === 'lessonplan') {
-        if (!selectedLessonPlan) {
-            showTempNotification("Please select a lesson plan to add content to.", true);
-            return;
-        }
-        if (selectedLessonPlan.name === 'New Lesson Plan') {
-            setPendingFile(file);
-            setRenameLessonPlanTitle(file.name.replace(/\.(docx|pdf)$/i, ''));
-            setRenameAndUploadModalOpen(true);
-        } else if (!lessonPlanContent.trim()) {
-            processFileUpload(file, 'replace-lesson');
-        } else {
-            setPendingFile(file);
-            setUploadLessonPlanModalOpen(true);
-        }
-    }
-  };
-  
-  const processFileUpload = async (file, mode) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    showTempNotification(`Uploading and processing ${file.name}...`);
-    try {
-      const response = await fetch("https://iep-harmony-backend.onrender.com/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'File upload failed'); }
-      const data = await response.json();
-      
-      if (mode === 'replace' || mode === 'merge') {
-        const current = mode === 'merge' ? (selectedClass?.accommodations || '') : '';
-        handleAccommodationChange(`${current}\n${data.text}`.trim());
-      } else if (mode === 'replace-lesson' || mode === 'merge-lesson') {
-        const current = mode === 'merge-lesson' ? (lessonPlanContent || '') : '';
-        handleLessonPlanContentChange(`${current}\n${data.text}`.trim());
-      }
-      showTempNotification("File processed successfully!");
-    } catch (error) { showTempNotification(`Could not process file. Is the backend server running?`, true); }
-  };
-  
-  const handleConfirmAccommodationUpload = (mode) => {
-      if (pendingFile) {
-          processFileUpload(pendingFile, mode);
-      }
-      setUploadAccommodationModalOpen(false);
-      setPendingFile(null);
-  };
-
-  const handleConfirmLessonPlanUpload = (mode) => {
-      if (pendingFile) {
-          processFileUpload(pendingFile, mode);
-      }
-      setUploadLessonPlanModalOpen(false);
-      setPendingFile(null);
-  };
-
-  const handleConfirmRenameAndUpload = async () => {
-    if (pendingFile && renameLessonPlanTitle.trim() && selectedLessonPlanId) {
-        const file = pendingFile;
-        const title = renameLessonPlanTitle.trim();
-
-        setRenameAndUploadModalOpen(false);
-        setPendingFile(null);
-        setRenameLessonPlanTitle('');
-        showTempNotification(`Renaming and processing ${file.name}...`);
-
-        try {
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
-            await updateDoc(docRef, { name: title });
-            // Now that it's renamed, we can process the file content for it.
-            // We pass the new content directly to the state handler.
-            const formData = new FormData();
-            formData.append('file', file);
-            const response = await fetch("https://iep-harmony-backend.onrender.com/upload", {
-                method: "POST",
-                body: formData,
-            });
-            if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'File upload failed'); }
-            const data = await response.json();
-            handleLessonPlanContentChange(data.text);
-
+          setSaveStatus('saving');
+          const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
+          await updateDoc(docRef, { content: lessonPlanContent });
+          setSaveStatus('saved');
+          
+          if (saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
+          saveStatusTimeout.current = setTimeout(() => setSaveStatus('idle'), 2000);
         } catch (error) {
-            showTempNotification(`Could not rename and upload: ${error.message}`, true);
+          console.error('Error saving lesson plan:', error);
+          setSaveStatus('idle');
         }
+      }, 500);
+    }
+    return () => {
+      if (accommodationChangeTimeout.current) clearTimeout(accommodationChangeTimeout.current);
+    };
+  }, [lessonPlanContent, selectedLessonPlanId, db, userId, selectedClassId]);
+
+  // UPDATED AI Analysis function that calls the API
+  const handleRunAIAnalysis = async () => {
+    if (!selectedClass?.accommodations?.trim() || !lessonPlanContent.trim()) {
+      alert('Please ensure both accommodations and lesson plan content are provided.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const results = await runAIAnalysis(selectedClass.accommodations, lessonPlanContent);
+      
+      if (results && results.length > 0) {
+        const analysisData = { analysis: results };
+        setAnalysisResult(analysisData);
+
+        // Save to Firebase
+        if (db && userId && selectedClassId && selectedLessonPlanId) {
+          const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
+          await updateDoc(docRef, { analysisResult: JSON.stringify(analysisData) });
+        }
+      }
+    } catch (error) {
+      console.error('AI Analysis failed:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-
-  const handleAnalyze = async () => {
-    if (!selectedClass || !lessonPlanContent) { showTempNotification("Please select a class and lesson plan.", true); return; }
-    const accommodationsToAnalyze = selectedClass.accommodations.split('\n').filter(a => a.trim() !== '');
-    if (accommodationsToAnalyze.length === 0) { showTempNotification("The selected class has no accommodations listed.", true); return; }
-
-    setIsLoading(true); setAnalysisResult(null); setError(null);
-
-    const prompt = `You are an expert instructional coach specializing in special education and Universal Design for Learning (UDL). Your task is to analyze a lesson plan against a list of required student accommodations. Here is the lesson plan: --- LESSON PLAN START --- ${lessonPlanContent} --- LESSON PLAN END --- Here is the list of accommodations for the class: --- ACCOMMODATIONS START --- ${accommodationsToAnalyze.join('\n')} --- ACCOMMODATIONS END --- Please perform the following task: For each accommodation, determine if the lesson plan meets it. The status must be one of three options: "Met", "Partially Met", or "Not Met". Provide a brief, one-sentence reason for your status choice. If the status is "Partially Met" or "Not Met", you MUST also provide a concrete, actionable suggestion to modify the lesson plan. Return your response as a single JSON object. Do not include any text or markdown formatting before or after the JSON object.`;
-    const schema = { type: "OBJECT", properties: { "analysis": { type: "ARRAY", items: { type: "OBJECT", properties: { "accommodation": { "type": "STRING" }, "status": { "type": "STRING", "enum": ["Met", "Partially Met", "Not Met"] }, "reason": { "type": "STRING" }, "suggestion": { "type": "STRING" } }, "propertyOrdering": ["accommodation", "status", "reason", "suggestion"], required: ["accommodation", "status", "reason"] } } }, required: ["analysis"] };
-
-    // Exponential backoff for API requests
-    let attempt = 0;
-    const maxAttempts = 5;
-    while(attempt < maxAttempts) {
-        try {
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", responseSchema: schema, } };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            
-            if (response.status === 429) {
-                const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                attempt++;
-                if (attempt >= maxAttempts) {
-                    throw new Error("API is busy. Please try again later.");
-                }
-                await new Promise(resolve => setTimeout(resolve, delay));
-                continue; // Retry the request
-            }
-
-            if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
-            const result = await response.json();
-            if (result.candidates?.[0]) {
-                const jsonText = result.candidates[0].content.parts[0].text;
-                const parsedResult = JSON.parse(jsonText);
-                
-                if (db && userId && selectedClassId && selectedLessonPlanId) {
-                    const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
-                    await updateDoc(docRef, { analysisResult: JSON.stringify(parsedResult) });
-                }
-                break; // Exit loop on success
-            } else { throw new Error("Invalid response structure from API."); }
-        } catch (err) {
-            showTempNotification(`An error occurred during analysis: ${err.message}`, true);
-            break; // Exit loop on other errors
-        } finally {
-            if (attempt >= maxAttempts || !isLoading) {
-                 setIsLoading(false);
-            }
+  const handleFileUpload = async (file, type) => {
+    // Mock file processing - replace with actual file processing
+    setTimeout(() => {
+      const mockContent = `Mock content extracted from ${file.name}\n\nThis is placeholder content. In a real implementation, this would contain the actual extracted text from the uploaded file.`;
+      
+      if (type === 'accommodation') {
+        setPendingFile({ content: mockContent, type });
+        setUploadAccommodationModalOpen(true);
+      } else if (type === 'lessonPlan') {
+        if (selectedLessonPlanId) {
+          setPendingFile({ content: mockContent, type });
+          setUploadLessonPlanModalOpen(true);
+        } else {
+          setRenameLessonPlanTitle(file.name.replace(/\.[^/.]+$/, ''));
+          setPendingFile({ content: mockContent, type });
+          setRenameAndUploadModalOpen(true);
         }
-    }
-    setIsLoading(false);
+      }
+    }, 1000);
   };
+
+  // Modal handlers
+  const handleAddClass = async () => {
+    if (!newClassName.trim() || !db || !userId) return;
+    
+    try {
+      const classesRef = collection(db, 'artifacts', appId, 'users', userId, 'classes');
+      await addDoc(classesRef, { name: newClassName.trim(), accommodations: '' });
+      setNewClassName('');
+      setAddClassModalOpen(false);
+    } catch (error) {
+      console.error('Error adding class:', error);
+    }
+  };
+
+  const handleDeleteClass = async () => {
+    if (!classToDelete || !db || !userId) return;
+    
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'classes', classToDelete.id));
+      if (selectedClassId === classToDelete.id) {
+        setSelectedClassId(null);
+        setSelectedLessonPlanId(null);
+      }
+      setDeleteClassModalOpen(false);
+      setClassToDelete(null);
+    } catch (error) {
+      console.error('Error deleting class:', error);
+    }
+  };
+
+  const handleAddLessonPlan = async () => {
+    if (!newLessonPlanName.trim() || !selectedClassId || !db || !userId) return;
+    
+    try {
+      const lessonPlansRef = collection(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans');
+      const docRef = await addDoc(lessonPlansRef, { 
+        name: newLessonPlanName.trim(), 
+        content: '',
+        analysisResult: null
+      });
+      setSelectedLessonPlanId(docRef.id);
+      setNewLessonPlanName('');
+      setAddLessonPlanModalOpen(false);
+    } catch (error) {
+      console.error('Error adding lesson plan:', error);
+    }
+  };
+
+  const handleDeleteLessonPlan = async () => {
+    if (!lessonPlanToDelete || !selectedClassId || !db || !userId) return;
+    
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', lessonPlanToDelete.id));
+      if (selectedLessonPlanId === lessonPlanToDelete.id) {
+        setSelectedLessonPlanId(null);
+      }
+      setDeleteLessonPlanModalOpen(false);
+      setLessonPlanToDelete(null);
+    } catch (error) {
+      console.error('Error deleting lesson plan:', error);
+    }
+  };
+
+  const updateAccommodations = async (newAccommodations) => {
+    if (!selectedClassId || !db || !userId) return;
+    
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId);
+      await updateDoc(docRef, { accommodations: newAccommodations });
+    } catch (error) {
+      console.error('Error updating accommodations:', error);
+    }
+  };
+
+  const handleUploadAccommodation = () => {
+    if (!pendingFile || !selectedClass) return;
+    
+    const currentAccommodations = selectedClass.accommodations || '';
+    const newAccommodations = currentAccommodations ? 
+      `${currentAccommodations}\n${pendingFile.content}` : 
+      pendingFile.content;
+    
+    updateAccommodations(newAccommodations);
+    setUploadAccommodationModalOpen(false);
+    setPendingFile(null);
+  };
+
+  const replaceAccommodations = () => {
+    if (!pendingFile) return;
+    
+    updateAccommodations(pendingFile.content);
+    setUploadAccommodationModalOpen(false);
+    setPendingFile(null);
+  };
+
+  const handleUploadLessonPlan = () => {
+    if (!pendingFile) return;
+    
+    const newContent = lessonPlanContent ? 
+      `${lessonPlanContent}\n\n${pendingFile.content}` : 
+      pendingFile.content;
+    
+    setLessonPlanContent(newContent);
+    setUploadLessonPlanModalOpen(false);
+    setPendingFile(null);
+  };
+
+  const replaceLessonPlan = () => {
+    if (!pendingFile) return;
+    
+    setLessonPlanContent(pendingFile.content);
+    setUploadLessonPlanModalOpen(false);
+    setPendingFile(null);
+  };
+
+  const handleRenameAndUpload = async () => {
+    if (!renameLessonPlanTitle.trim() || !pendingFile || !selectedClassId || !db || !userId) return;
+    
+    try {
+      const lessonPlansRef = collection(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans');
+      const docRef = await addDoc(lessonPlansRef, { 
+        name: renameLessonPlanTitle.trim(), 
+        content: pendingFile.content,
+        analysisResult: null
+      });
+      setSelectedLessonPlanId(docRef.id);
+      setRenameAndUploadModalOpen(false);
+      setRenameLessonPlanTitle('');
+      setPendingFile(null);
+    } catch (error) {
+      console.error('Error creating lesson plan:', error);
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+          <div className="flex items-center space-x-3 mb-4">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+            <h1 className="text-xl font-bold text-gray-900">Connection Error</h1>
+          </div>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
-      {notification && <div className="fixed top-5 right-5 bg-blue-500 text-white py-2 px-4 rounded-lg shadow-lg animate-fade-in-out z-50">{notification}</div>}
-      {error && <div className="fixed top-5 right-5 bg-red-500 text-white py-2 px-4 rounded-lg shadow-lg animate-fade-in-out z-50">{error}</div>}
-      
-      <header className="bg-white shadow-sm sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3"><BrainCircuit className="h-8 w-8 text-indigo-600" /><h1 className="text-2xl font-bold text-gray-900">IEP Harmony</h1></div>
-          <div className="text-sm text-gray-500 flex items-center space-x-2">
-            {saveStatus === 'saving' && <span className="animate-pulse">Saving...</span>}
-            {saveStatus === 'saved' && <span className="flex items-center text-green-600"><Check size={16} className="mr-1"/> Saved</span>}
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center space-x-3">
+            <BrainCircuit className="h-8 w-8 text-indigo-600" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">IEP Harmony</h1>
+              <p className="text-gray-600">AI-powered lesson plan and accommodations analyzer</p>
+            </div>
           </div>
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg-col-span-1 space-y-6">
-            <div className="bg-white p-5 rounded-xl shadow-sm">
-              <h2 className="text-lg font-semibold flex items-center mb-4"><ListChecks className="mr-2 text-indigo-500"/>Class Accommodations</h2>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <select value={selectedClassId || ''} onChange={(e) => setSelectedClassId(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
-                    {sortedClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <button onClick={() => setAddClassModalOpen(true)} className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600"><Plus size={20}/></button>
-                  <button onClick={() => openDeleteClassModal(selectedClassId)} disabled={!selectedClass} className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 disabled:bg-gray-300"><Trash2 size={20}/></button>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Classes Panel */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Classes</h2>
+              <button
+                onClick={() => setAddClassModalOpen(true)}
+                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2 mb-6">
+              {sortedClasses.map((cls) => (
+                <div
+                  key={cls.id}
+                  className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${
+                    selectedClassId === cls.id ? 'bg-indigo-50 border-indigo-200 border' : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => {
+                    setSelectedClassId(cls.id);
+                    setSelectedLessonPlanId(null);
+                  }}
+                >
+                  <span className="font-medium">{cls.name}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setClassToDelete(cls);
+                      setDeleteClassModalOpen(true);
+                    }}
+                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                {selectedClass ? (
-                  <div className="pt-4 border-t">
-                    <FileUploadZone onFileUpload={handleFileUpload} fileType="accommodations" />
-                    <div className="my-4 text-center text-sm text-gray-400">OR</div>
-                    <p className="text-sm text-gray-600 mb-3">Paste or edit accommodations for <span className="font-semibold">{selectedClass.name}</span>.</p>
-                    <textarea value={selectedClass.accommodations || ''} onChange={(e) => handleAccommodationChange(e.target.value)} placeholder="Enter accommodations, one per line..." className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" rows="8"/>
-                  </div>
-                ) : (
-                  <div className="text-center py-10 text-gray-500">
-                    <p>{userId ? "No classes found." : "Connecting to database..."}</p>
-                    {userId && <button onClick={() => setAddClassModalOpen(true)} className="mt-2 text-indigo-600 font-semibold">Create a new class to begin.</button>}
+              ))}
+            </div>
+
+            {selectedClass && (
+              <div>
+                <h3 className="text-lg font-medium mb-3">Accommodations</h3>
+                <textarea
+                  value={selectedClass.accommodations || ''}
+                  onChange={(e) => updateAccommodations(e.target.value)}
+                  className="w-full h-40 p-3 border border-gray-300 rounded-lg resize-none"
+                  placeholder="Enter accommodations (one per line)..."
+                />
+                <div className="mt-4">
+                  <FileUploadZone 
+                    onFileUpload={handleFileUpload} 
+                    fileType="accommodation" 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Lesson Plans Panel */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Lesson Plans</h2>
+              {selectedClassId && (
+                <button
+                  onClick={() => setAddLessonPlanModalOpen(true)}
+                  className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {!selectedClassId ? (
+              <p className="text-gray-500 text-center py-8">Select a class to view lesson plans</p>
+            ) : (
+              <>
+                <div className="space-y-2 mb-6">
+                  {lessonPlans.map((plan) => (
+                    <div
+                      key={plan.id}
+                      className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${
+                        selectedLessonPlanId === plan.id ? 'bg-indigo-50 border-indigo-200 border' : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => setSelectedLessonPlanId(plan.id)}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <FileText className="w-4 h-4 text-gray-400" />
+                        <span className="font-medium">{plan.name}</span>
+                        {plan.analysisResult && (
+                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLessonPlanToDelete(plan);
+                          setDeleteLessonPlanModalOpen(true);
+                        }}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {selectedLessonPlan && (
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-medium">Content</h3>
+                      <div className="flex items-center space-x-2">
+                        {saveStatus === 'saving' && (
+                          <span className="text-xs text-yellow-600">Saving...</span>
+                        )}
+                        {saveStatus === 'saved' && (
+                          <span className="text-xs text-green-600 flex items-center">
+                            <Check className="w-3 h-3 mr-1" />
+                            Saved
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <textarea
+                      value={lessonPlanContent}
+                      onChange={(e) => setLessonPlanContent(e.target.value)}
+                      className="w-full h-48 p-3 border border-gray-300 rounded-lg resize-none"
+                      placeholder="Enter lesson plan content..."
+                    />
+                    <div className="mt-4 space-y-3">
+                      <FileUploadZone 
+                        onFileUpload={handleFileUpload} 
+                        fileType="lessonPlan" 
+                      />
+                      <button
+                        onClick={handleRunAIAnalysis}
+                        disabled={isLoading || !selectedClass?.accommodations?.trim() || !lessonPlanContent.trim()}
+                        className="w-full flex items-center justify-center px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <BrainCircuit className="w-5 h-5 mr-2" />
+                        {isLoading ? 'Analyzing...' : 'Run AI Analysis'}
+                      </button>
+                    </div>
                   </div>
                 )}
-              </div>
-            </div>
+              </>
+            )}
           </div>
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-5 rounded-xl shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                 <h2 className="text-lg font-semibold flex items-center"><FileText className="mr-2 text-green-500"/>Lesson Plan</h2>
-                 <div className="flex items-center space-x-2">
-                    <select value={selectedLessonPlanId || ''} onChange={e => setSelectedLessonPlanId(e.target.value)} className="p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm" disabled={lessonPlans.length === 0}>
-                        {lessonPlans.map(lp => <option key={lp.id} value={lp.id}>{lp.name}</option>)}
-                    </select>
-                    <button onClick={() => setAddLessonPlanModalOpen(true)} className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600"><Plus size={20}/></button>
-                    <button onClick={openDeleteLessonPlanModal} disabled={!selectedLessonPlan} className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 disabled:bg-gray-300"><Trash2 size={20}/></button>
-                 </div>
+
+          {/* Analysis Results Panel */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Analysis Results</h2>
+            
+            {!selectedLessonPlan ? (
+              <p className="text-gray-500 text-center py-8">Select a lesson plan to view analysis</p>
+            ) : !analysisResult ? (
+              <p className="text-gray-500 text-center py-8">Run AI analysis to see results</p>
+            ) : (
+              <div className="space-y-4">
+                {analysisResult.analysis?.map((result, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        {result.status === 'Met' && <CheckCircle className="w-5 h-5 text-green-600" />}
+                        {result.status === 'Partially Met' && <AlertCircle className="w-5 h-5 text-yellow-600" />}
+                        {result.status === 'Not Met' && <XCircle className="w-5 h-5 text-red-600" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{result.accommodation}</div>
+                        <div className={`text-sm mt-1 ${
+                          result.status === 'Met' ? 'text-green-600' :
+                          result.status === 'Partially Met' ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          Status: {result.status}
+                        </div>
+                        {result.suggestion && (
+                          <div className="mt-2 p-3 bg-gray-50 rounded text-sm text-gray-700">
+                            <strong>Suggestion:</strong> {result.suggestion}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <FileUploadZone onFileUpload={handleFileUpload} fileType="lessonplan" />
-              <div className="my-4 text-center text-sm text-gray-400">OR</div>
-              <textarea className="w-full h-64 p-4 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm leading-6 bg-white" placeholder={selectedClass ? "Select or create a lesson plan to begin." : "Select a class first."} value={lessonPlanContent} onChange={(e) => handleLessonPlanContentChange(e.target.value)} disabled={!selectedLessonPlan}/>
-              <div className="mt-4 flex justify-end">
-                <button onClick={handleAnalyze} disabled={isLoading || !lessonPlanContent || !selectedClass} className="flex items-center justify-center bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200">
-                  {isLoading ? 'Analyzing...' : 'Run AI Analysis'}
-                </button>
-              </div>
-            </div>
-            {analysisResult && <AnalysisReport result={analysisResult} />}
+            )}
           </div>
         </div>
-      </main>
+      </div>
 
+      {/* Modals */}
       <Modal isOpen={isAddClassModalOpen} onClose={() => setAddClassModalOpen(false)}>
-        <h3 className="text-lg font-semibold mb-4">Add New Class</h3>
-        <input type="text" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="e.g., Period 5 - Geometry" className="w-full p-2 border border-gray-300 rounded-md mb-4" autoFocus />
-        <div className="flex justify-end space-x-2">
-            <button onClick={() => setAddClassModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-            <button onClick={handleAddNewClass} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Add Class</button>
+        <h3 className="text-lg font-medium mb-4">Add New Class</h3>
+        <input
+          type="text"
+          value={newClassName}
+          onChange={(e) => setNewClassName(e.target.value)}
+          placeholder="Class name"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-4"
+          onKeyPress={(e) => e.key === 'Enter' && handleAddClass()}
+        />
+        <div className="flex space-x-3">
+          <button
+            onClick={handleAddClass}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Add Class
+          </button>
+          <button
+            onClick={() => setAddClassModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
         </div>
       </Modal>
 
       <Modal isOpen={isDeleteClassModalOpen} onClose={() => setDeleteClassModalOpen(false)}>
-        <h3 className="text-lg font-semibold mb-2">Confirm Deletion</h3>
-        <p className="text-gray-600 mb-4">Are you sure you want to delete the class "{classToDelete?.name}"? This action cannot be undone.</p>
-        <div className="flex justify-end space-x-2">
-            <button onClick={() => setDeleteClassModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-            <button onClick={confirmDeleteClass} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Delete</button>
+        <h3 className="text-lg font-medium mb-4">Delete Class</h3>
+        <p className="text-gray-600 mb-4">
+          Are you sure you want to delete "{classToDelete?.name}"? This will also delete all associated lesson plans.
+        </p>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleDeleteClass}
+            className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setDeleteClassModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
         </div>
       </Modal>
 
       <Modal isOpen={isAddLessonPlanModalOpen} onClose={() => setAddLessonPlanModalOpen(false)}>
-        <h3 className="text-lg font-semibold mb-4">Add New Lesson Plan</h3>
-        <input type="text" value={newLessonPlanName} onChange={(e) => setNewLessonPlanName(e.target.value)} placeholder="e.g., Unit 1: The Odyssey" className="w-full p-2 border border-gray-300 rounded-md mb-4" autoFocus />
-        <div className="flex justify-end space-x-2">
-            <button onClick={() => setAddLessonPlanModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-            <button onClick={handleAddNewLessonPlan} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Add Plan</button>
+        <h3 className="text-lg font-medium mb-4">Add New Lesson Plan</h3>
+        <input
+          type="text"
+          value={newLessonPlanName}
+          onChange={(e) => setNewLessonPlanName(e.target.value)}
+          placeholder="Lesson plan name"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-4"
+          onKeyPress={(e) => e.key === 'Enter' && handleAddLessonPlan()}
+        />
+        <div className="flex space-x-3">
+          <button
+            onClick={handleAddLessonPlan}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Add Lesson Plan
+          </button>
+          <button
+            onClick={() => setAddLessonPlanModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
         </div>
       </Modal>
-      
+
       <Modal isOpen={isDeleteLessonPlanModalOpen} onClose={() => setDeleteLessonPlanModalOpen(false)}>
-        <h3 className="text-lg font-semibold mb-2">Confirm Deletion</h3>
-        <p className="text-gray-600 mb-4">Are you sure you want to delete the lesson plan "{lessonPlanToDelete?.name}"? This action cannot be undone.</p>
-        <div className="flex justify-end space-x-2">
-            <button onClick={() => setDeleteLessonPlanModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-            <button onClick={confirmDeleteLessonPlan} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Delete</button>
+        <h3 className="text-lg font-medium mb-4">Delete Lesson Plan</h3>
+        <p className="text-gray-600 mb-4">
+          Are you sure you want to delete "{lessonPlanToDelete?.name}"?
+        </p>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleDeleteLessonPlan}
+            className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setDeleteLessonPlanModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
         </div>
       </Modal>
-      
+
       <Modal isOpen={isUploadAccommodationModalOpen} onClose={() => setUploadAccommodationModalOpen(false)}>
-        <h3 className="text-lg font-semibold mb-4">Update Accommodations</h3>
-        <p className="text-gray-600 mb-4">How would you like to add the accommodations from the uploaded file?</p>
-        <div className="flex justify-end space-x-2">
-            <button onClick={() => handleConfirmAccommodationUpload('replace')} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Replace Existing</button>
-            <button onClick={() => handleConfirmAccommodationUpload('merge')} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Add to Existing</button>
+        <h3 className="text-lg font-medium mb-4">Upload Accommodations</h3>
+        <p className="text-gray-600 mb-4">
+          How would you like to handle the uploaded accommodations?
+        </p>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleUploadAccommodation}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Add to Existing
+          </button>
+          <button
+            onClick={replaceAccommodations}
+            className="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
+          >
+            Replace All
+          </button>
         </div>
       </Modal>
 
       <Modal isOpen={isUploadLessonPlanModalOpen} onClose={() => setUploadLessonPlanModalOpen(false)}>
-        <h3 className="text-lg font-semibold mb-4">Update Lesson Plan Content</h3>
-        <p className="text-gray-600 mb-4">How would you like to add the content from the uploaded file to the current lesson plan?</p>
-        <div className="flex justify-end space-x-2">
-            <button onClick={() => handleConfirmLessonPlanUpload('replace-lesson')} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Replace Existing</button>
-            <button onClick={() => handleConfirmLessonPlanUpload('merge-lesson')} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Add to Existing</button>
-        </div>
-      </Modal>
-      
-      <Modal isOpen={isRenameAndUploadModalOpen} onClose={() => setRenameAndUploadModalOpen(false)}>
-        <h3 className="text-lg font-semibold mb-4">Title Your Lesson Plan</h3>
-        <input type="text" value={renameLessonPlanTitle} onChange={(e) => setRenameLessonPlanTitle(e.target.value)} placeholder="Enter a title for the lesson plan" className="w-full p-2 border border-gray-300 rounded-md mb-4" autoFocus />
-        <div className="flex justify-end space-x-2">
-            <button onClick={() => setRenameAndUploadModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-            <button onClick={handleConfirmRenameAndUpload} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Save Title and Upload</button>
+        <h3 className="text-lg font-medium mb-4">Upload Lesson Plan</h3>
+        <p className="text-gray-600 mb-4">
+          How would you like to handle the uploaded lesson plan content?
+        </p>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleUploadLessonPlan}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Add to Existing
+          </button>
+          <button
+            onClick={replaceLessonPlan}
+            className="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
+          >
+            Replace All
+          </button>
         </div>
       </Modal>
 
+      <Modal isOpen={isRenameAndUploadModalOpen} onClose={() => setRenameAndUploadModalOpen(false)}>
+        <h3 className="text-lg font-medium mb-4">Create New Lesson Plan</h3>
+        <input
+          type="text"
+          value={renameLessonPlanTitle}
+          onChange={(e) => setRenameLessonPlanTitle(e.target.value)}
+          placeholder="Lesson plan title"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-4"
+          onKeyPress={(e) => e.key === 'Enter' && handleRenameAndUpload()}
+        />
+        <div className="flex space-x-3">
+          <button
+            onClick={handleRenameAndUpload}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Create
+          </button>
+          <button
+            onClick={() => setRenameAndUploadModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
-
-// --- UPDATED ANALYSIS REPORT COMPONENT ---
-
-function AnalysisItem({ item }) {
-    const [isSuggestionVisible, setSuggestionVisible] = useState(false);
-    const StatusIcon = ({ status }) => {
-        if (status === 'Met') return <CheckCircle className="text-green-500 flex-shrink-0" />;
-        if (status === 'Partially Met') return <AlertCircle className="text-yellow-500 flex-shrink-0" />;
-        return <XCircle className="text-red-500 flex-shrink-0" />;
-    };
-
-    return (
-        <div className="border-b last:border-b-0 py-3">
-            <div className="flex items-start">
-                <StatusIcon status={item.status} />
-                <div className="ml-3 flex-1">
-                    <p className="font-semibold text-gray-800">{item.accommodation}</p>
-                    <p className="text-gray-600 text-sm">{item.reason}</p>
-                </div>
-            </div>
-            {item.suggestion && (
-                <div className="pl-8 mt-2">
-                    <button onClick={() => setSuggestionVisible(!isSuggestionVisible)} className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex items-center">
-                        {isSuggestionVisible ? <ChevronUp size={16} className="mr-1" /> : <ChevronDown size={16} className="mr-1" />}
-                        {isSuggestionVisible ? 'Hide Suggestion' : 'Show Suggestion to Meet Requirement'}
-                    </button>
-                    {isSuggestionVisible && (
-                        <div className="mt-2 p-3 bg-indigo-50 rounded-md text-sm text-indigo-800 animate-fade-in">
-                            {item.suggestion}
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
-
-function AnalysisReport({ result }) {
-    const [openSections, setOpenSections] = useState({ met: true, partial: true, notMet: true });
-
-    const toggleSection = (section) => {
-        setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
-    };
-
-    const renderSection = (title, items, statusFilter, sectionKey) => {
-        const filteredItems = items?.filter(item => item.status === statusFilter) || [];
-        if (filteredItems.length === 0) return null;
-        
-        const isOpen = openSections[sectionKey];
-
-        return (
-            <div>
-                <button onClick={() => toggleSection(sectionKey)} className="w-full flex justify-between items-center text-left py-2">
-                    <h4 className="text-md font-semibold flex items-center">
-                        {title} ({filteredItems.length})
-                    </h4>
-                    {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </button>
-                {isOpen && (
-                    <div className="pl-4 border-l-2">
-                        {filteredItems.map((item, index) => (
-                            <AnalysisItem key={index} item={item} />
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    return (
-        <div className="bg-white p-6 rounded-xl shadow-sm animate-fade-in">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Analysis Report</h3>
-            <div className="space-y-2">
-                {renderSection('Accommodations Met', result.analysis, 'Met', 'met')}
-                {renderSection('Partially Met', result.analysis, 'Partially Met', 'partial')}
-                {renderSection('Not Met', result.analysis, 'Not Met', 'notMet')}
-            </div>
-        </div>
-    );
-}
-
-
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes fade-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes fade-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-10px); } }
-  .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
-  .animate-fade-in-out { animation: fade-in 0.5s ease-out forwards, fade-out 0.5s ease-in 4.5s forwards; }
-`;
-document.head.append(style);
