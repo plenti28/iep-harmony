@@ -184,8 +184,9 @@ const downloadResource = (resource) => {
     URL.revokeObjectURL(url);
 };
 
-// Enhanced file processing
+// FIXED: Enhanced file processing with better error handling
 const processFileUpload = async (file, mode, showNotification, handleFileContent, setIsProcessingFile) => {
+    console.log('Starting file upload:', file.name, 'Mode:', mode);
     setIsProcessingFile(true);
     showNotification(`Processing ${file.name}...`);
     
@@ -196,10 +197,13 @@ const processFileUpload = async (file, mode, showNotification, handleFileContent
         const formData = new FormData();
         formData.append('file', file);
         
+        console.log('Sending file to server...');
         const response = await fetch("https://iep-harmony-backend.onrender.com/upload", {
             method: "POST",
             body: formData,
         });
+        
+        console.log('Server response status:', response.status);
         
         if (!response.ok) {
             const errorData = await response.json();
@@ -207,6 +211,12 @@ const processFileUpload = async (file, mode, showNotification, handleFileContent
         }
         
         const data = await response.json();
+        console.log('File processed successfully, extracted text length:', data.text?.length);
+        
+        if (!data.text || data.text.trim().length === 0) {
+            throw new Error('No text content extracted from file');
+        }
+        
         handleFileContent(data.text, mode);
         showNotification("File processed successfully!");
     } catch (error) {
@@ -256,19 +266,47 @@ const Modal = ({ isOpen, onClose, children, preventCloseOnOutsideClick = false }
     );
 };
 
+// FIXED: FileUploadZone with better logging
 const FileUploadZone = ({ onFileUpload, fileType }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const handleDrag = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(e.type === 'dragenter' || e.type === 'dragover'); };
-  const handleDrop = (e) => {
-    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-    if (e.dataTransfer.files?.[0]) onFileUpload(e.dataTransfer.files[0], fileType);
+  
+  const handleDrag = (e) => { 
+    e.preventDefault(); 
+    e.stopPropagation(); 
+    setIsDragging(e.type === 'dragenter' || e.type === 'dragover'); 
   };
-  const handleChange = (e) => { if (e.target.files?.[0]) onFileUpload(e.target.files[0], fileType); };
+  
+  const handleDrop = (e) => {
+    e.preventDefault(); 
+    e.stopPropagation(); 
+    setIsDragging(false);
+    console.log('File dropped:', e.dataTransfer.files);
+    if (e.dataTransfer.files?.[0]) {
+      console.log('Calling onFileUpload with dropped file');
+      onFileUpload(e.dataTransfer.files[0], fileType);
+    }
+  };
+  
+  const handleChange = (e) => { 
+    console.log('File selected via click:', e.target.files);
+    if (e.target.files?.[0]) {
+      console.log('Calling onFileUpload with selected file');
+      onFileUpload(e.target.files[0], fileType);
+      // Reset the input so the same file can be selected again
+      e.target.value = '';
+    }
+  };
 
   return (
     <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${isDragging ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400'}`}>
-      <input type="file" id={`file-upload-${fileType}`} className="absolute w-full h-full opacity-0 cursor-pointer" onChange={handleChange} accept=".pdf,.docx"/>
-      <label htmlFor={`file-upload-${fileType}`} className="cursor-pointer">
+      <input 
+        type="file" 
+        id={`file-upload-${fileType}`} 
+        className="absolute w-full h-full opacity-0 cursor-pointer z-10" 
+        onChange={handleChange} 
+        accept=".pdf,.docx"
+      />
+      <label htmlFor={`file-upload-${fileType}`} className="cursor-pointer block">
         <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
         <p className="mt-2 text-sm text-gray-600"><span className="font-semibold text-indigo-600">Click to upload</span> or drag and drop</p>
         <p className="text-xs text-gray-500">PDF, DOCX supported</p>
@@ -490,7 +528,7 @@ export default function App() {
       const unsubscribe = onSnapshot(classesRef, (snapshot) => {
         if (snapshot.empty) {
           setClasses(initialClasses);
-          setSelectedClassId(initialClasses[0].id);
+          if (!selectedClassId) setSelectedClassId(initialClasses[0].id);
         } else {
           const loadedClasses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setClasses(loadedClasses);
@@ -512,8 +550,8 @@ export default function App() {
         if (snapshot.empty) {
           const initialPlans = initialLessonPlans[selectedClassId] || [{ id: 'new', name: 'New Lesson Plan', content: '' }];
           setLessonPlans(initialPlans);
-          setSelectedLessonPlanId(initialPlans[0].id);
-          setLessonPlanContent(initialPlans[0].content || '');
+          if (!selectedLessonPlanId) setSelectedLessonPlanId(initialPlans[0].id);
+          if (!selectedLessonPlanId) setLessonPlanContent(initialPlans[0].content || '');
         } else {
           const loadedPlans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setLessonPlans(loadedPlans);
@@ -556,8 +594,11 @@ export default function App() {
     }
   };
 
-  // --- FILE HANDLING ---
+  // FIXED: File handling with better state preservation
   const handleFileContent = (content, mode) => {
+    // Store current class ID to prevent it from changing
+    const currentClassId = selectedClassId;
+    
     if (mode === 'replace' || mode === 'merge') {
       const current = mode === 'merge' ? (selectedClass?.accommodations || '') : '';
       handleAccommodationChange(`${current}\n${content}`.trim());
@@ -565,9 +606,23 @@ export default function App() {
       const current = mode === 'merge-lesson' ? (lessonPlanContent || '') : '';
       handleLessonPlanContentChange(`${current}\n${content}`.trim());
     }
+    
+    // Restore class ID if it changed
+    if (selectedClassId !== currentClassId) {
+      setSelectedClassId(currentClassId);
+    }
   };
 
+  // FIXED: File upload with better error handling and logging
   const handleFileUpload = (file, fileType) => {
+    console.log('handleFileUpload called:', file.name, fileType);
+    
+    if (!file) {
+      console.error('No file provided to handleFileUpload');
+      showTempNotification('No file selected', true);
+      return;
+    }
+
     if (fileType === 'accommodations') {
         if (!selectedClass?.accommodations?.trim()) {
             processFileUpload(file, 'replace', showTempNotification, handleFileContent, setIsProcessingFile);
@@ -580,7 +635,7 @@ export default function App() {
             showTempNotification("Please select a lesson plan to add content to.", true);
             return;
         }
-        if (selectedLessonPlan.name === 'New Lesson Plan') {
+        if (selectedLessonPlan.name === 'New Lesson Plan' || selectedLessonPlan.id === 'new') {
             setPendingFile(file);
             setRenameLessonPlanTitle(file.name.replace(/\.(docx|pdf)$/i, ''));
             setRenameAndUploadModalOpen(true);
@@ -609,23 +664,46 @@ export default function App() {
       setPendingFile(null);
   };
 
+  // FIXED: Rename and upload function with proper lesson plan creation
   const handleConfirmRenameAndUpload = async () => {
-    if (pendingFile && renameLessonPlanTitle.trim() && selectedLessonPlanId) {
-        const file = pendingFile;
-        const title = renameLessonPlanTitle.trim();
+    if (!pendingFile || !renameLessonPlanTitle.trim()) {
+        showTempNotification("Please provide a title for the lesson plan.", true);
+        return;
+    }
 
-        setRenameAndUploadModalOpen(false);
-        setPendingFile(null);
-        setRenameLessonPlanTitle('');
-        showTempNotification(`Renaming and processing ${file.name}...`);
+    const file = pendingFile;
+    const title = renameLessonPlanTitle.trim();
+    const currentClassId = selectedClassId; // Preserve class ID
 
-        try {
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
-            await updateDoc(docRef, { name: title });
-            processFileUpload(file, 'replace-lesson', showTempNotification, handleFileContent, setIsProcessingFile);
-        } catch (error) {
-            showTempNotification(`Could not rename and upload.`, true);
+    setRenameAndUploadModalOpen(false);
+    setPendingFile(null);
+    setRenameLessonPlanTitle('');
+
+    try {
+        if (!db || !userId || !currentClassId) {
+            throw new Error("Database connection not ready");
         }
+
+        showTempNotification(`Creating lesson plan "${title}" and processing file...`);
+
+        // Create new lesson plan in database first
+        const newLessonPlanRef = await addDoc(
+            collection(db, 'artifacts', appId, 'users', userId, 'classes', currentClassId, 'lessonPlans'), 
+            {
+                name: title,
+                content: ''
+            }
+        );
+
+        // Set the new lesson plan as selected
+        setSelectedLessonPlanId(newLessonPlanRef.id);
+
+        // Process the file and add content to the new lesson plan
+        processFileUpload(file, 'replace-lesson', showTempNotification, handleFileContent, setIsProcessingFile);
+
+    } catch (error) {
+        console.error('Error creating lesson plan:', error);
+        showTempNotification(`Could not create lesson plan: ${error.message}`, true);
     }
   };
 
@@ -732,14 +810,17 @@ export default function App() {
       }
   };
 
-  // --- DATA CHANGE HANDLERS ---
+  // FIXED: Data change handlers with better state preservation
   const handleAccommodationChange = (text) => {
-    setClasses(classes.map(c => c.id === selectedClassId ? { ...c, accommodations: text } : c));
+    const currentClassId = selectedClassId; // Preserve current class ID
+    
+    setClasses(classes.map(c => c.id === currentClassId ? { ...c, accommodations: text } : c));
     setSaveStatus('saving');
+    
     if (accommodationChangeTimeout.current) clearTimeout(accommodationChangeTimeout.current);
     accommodationChangeTimeout.current = setTimeout(async () => {
-        if (db && userId && selectedClassId) {
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId);
+        if (db && userId && currentClassId) {
+            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', currentClassId);
             try { 
                 await setDoc(docRef, { accommodations: text }, { merge: true });
                 setSaveStatus('saved');
@@ -754,6 +835,7 @@ export default function App() {
   const handleLessonPlanContentChange = (text) => {
     setLessonPlanContent(text);
     setSaveStatus('saving');
+    
     if (lessonPlanChangeTimeout.current) clearTimeout(lessonPlanChangeTimeout.current);
     lessonPlanChangeTimeout.current = setTimeout(async () => {
         if (db && userId && selectedClassId && selectedLessonPlanId) {
