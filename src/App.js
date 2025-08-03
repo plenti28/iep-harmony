@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { BrainCircuit, FileText, AlertCircle, CheckCircle, XCircle, ListChecks, UploadCloud, Link, Plus, Trash2, Edit, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { BrainCircuit, FileText, AlertCircle, CheckCircle, XCircle, ListChecks, UploadCloud, Plus, Trash2, Check } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, writeBatch, updateDoc } from 'firebase/firestore';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, writeBatch, updateDoc } from 'firebase/firestore';
 
-// --- INITIAL STATE (for first-time users) ---
+// --- INITIAL STATE ---
 const initialClasses = [
   { id: '1', name: 'Period 1 - English 9', accommodations: 'Extended time on tests (1.5x)\nProvide notes/slides in advance\nRequires text-to-speech software' },
   { id: '2', name: 'Period 3 - Creative Writing', accommodations: 'Option for verbal responses\nUse of spell-checker\nGraphic organizer for multi-step projects' },
-  { id: '3', name: 'Period 4 - English 9', accommodations: 'Extended time on tests (1.5x)\nPreferential seating\nFrequent breaks' },
+  { id: '3', name: 'Period 4 - English 9', accommodations: 'Extended time on tests (1.5x)\nPreferential seating\nFrequent breaks' }
 ];
 
 const initialLessonPlans = {
   '1': [{ id: 'lp1', name: 'Foreshadowing in "The Tell-Tale Heart"', content: 'Objective: Students will analyze the use of foreshadowing in "The Tell-Tale Heart".\n\nActivities:\n1. Warm-up: Define foreshadowing.\n2. Read the story aloud as a class.\n3. In small groups, find three examples of foreshadowing and discuss their effect.' }],
   '2': [{ id: 'lp2', name: 'Show, Don\'t Tell Practice', content: 'Objective: Students will practice "show, don\'t tell" in their writing.\n\nActivity: Write a one-page scene describing a character who is nervous, without using the word "nervous".' }],
-  '3': [{ id: 'lp3', name: 'Intro to Shakespeare', content: 'Objective: Introduce key themes and language in Shakespeare\'s works.' }],
+  '3': [{ id: 'lp3', name: 'Intro to Shakespeare', content: 'Objective: Introduce key themes and language in Shakespeare\'s works.' }]
 };
 
 // --- FIREBASE CONFIG ---
@@ -28,7 +28,6 @@ const firebaseConfig = {
   measurementId: "G-6HRVNZF1R0"
 };
 
-// This can be a unique name for your app instance
 const appId = 'iep-harmony-app';
 
 // --- AI ANALYSIS FUNCTION ---
@@ -38,13 +37,8 @@ const runAIAnalysis = async (accommodations, lessonContent) => {
     
     const response = await fetch('/api/ai-analysis', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        accommodations,
-        lessonContent
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accommodations, lessonContent })
     });
 
     if (!response.ok) {
@@ -56,9 +50,7 @@ const runAIAnalysis = async (accommodations, lessonContent) => {
 
     const data = await response.json();
     console.log('AI Analysis successful:', data);
-    
     return data.results;
-
   } catch (error) {
     console.error('AI Analysis Error:', error);
     alert(`AI Analysis encountered an error: ${error.message}. Please try again or contact support if the issue persists.`);
@@ -66,7 +58,7 @@ const runAIAnalysis = async (accommodations, lessonContent) => {
   }
 };
 
-// --- REUSABLE COMPONENTS ---
+// --- COMPONENTS ---
 const FileUploadZone = ({ onFileUpload, fileType }) => {
   const [isDragging, setIsDragging] = useState(false);
   
@@ -137,7 +129,6 @@ const Modal = ({ isOpen, onClose, children }) => {
   );
 };
 
-// --- NOTIFICATION COMPONENT ---
 const Notification = ({ notification, onClose }) => {
   if (!notification) return null;
 
@@ -192,11 +183,9 @@ export default function App() {
   const [error, setError] = useState(null);
   const [saveStatus, setSaveStatus] = useState('idle');
   
-  // Firebase state
   const [db, setDb] = useState(null);
   const [userId, setUserId] = useState(null);
 
-  // Modal state
   const [isAddClassModalOpen, setAddClassModalOpen] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [isDeleteClassModalOpen, setDeleteClassModalOpen] = useState(false);
@@ -215,12 +204,10 @@ export default function App() {
   const lessonPlanChangeTimeout = useRef(null);
   const saveStatusTimeout = useRef(null);
   
-  // Derived state variables
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const sortedClasses = [...classes].sort((a, b) => a.name.localeCompare(b.name));
   const selectedLessonPlan = lessonPlans.find(lp => lp.id === selectedLessonPlanId);
 
-  // Clear notification function
   const clearNotification = () => setNotification(null);
 
   // --- FIREBASE INITIALIZATION ---
@@ -251,7 +238,6 @@ export default function App() {
     }
   }, []);
 
-  // Load classes when user is authenticated
   useEffect(() => {
     if (!db || !userId) return;
 
@@ -270,7 +256,6 @@ export default function App() {
     return () => unsubscribe();
   }, [db, userId]);
 
-  // Load lesson plans when a class is selected
   useEffect(() => {
     if (!db || !userId || !selectedClassId) {
       setLessonPlans([]);
@@ -289,7 +274,6 @@ export default function App() {
     return () => unsubscribe();
   }, [db, userId, selectedClassId]);
 
-  // Load lesson plan content when one is selected
   useEffect(() => {
     if (selectedLessonPlan) {
       setLessonPlanContent(selectedLessonPlan.content || '');
@@ -310,7 +294,6 @@ export default function App() {
     }
   }, [selectedLessonPlan]);
 
-  // --- HELPER FUNCTIONS ---
   const populateInitialData = async () => {
     if (!db || !userId) return;
 
@@ -338,7 +321,6 @@ export default function App() {
     }
   };
 
-  // --- AUTO-SAVE FUNCTIONS ---
   const updateLessonPlanContentDebounced = useCallback(async (newContent) => {
     if (!selectedLessonPlanId || !selectedClassId || !db || !userId) return;
 
@@ -375,7 +357,6 @@ export default function App() {
     }, 1000);
   }, [selectedClassId, db, userId]);
 
-  // --- EVENT HANDLERS ---
   const handleLessonPlanContentChange = (newContent) => {
     setLessonPlanContent(newContent);
     updateLessonPlanContentDebounced(newContent);
@@ -414,7 +395,6 @@ export default function App() {
     }
   };
 
-  // --- FILE UPLOAD HANDLER ---
   const handleFileUpload = async (file, type) => {
     try {
       setNotification({
@@ -489,7 +469,6 @@ export default function App() {
     }
   };
 
-  // --- MODAL HANDLERS ---
   const handleAddClass = async () => {
     if (!newClassName.trim() || !db || !userId) return;
     
@@ -549,17 +528,6 @@ export default function App() {
       setLessonPlanToDelete(null);
     } catch (error) {
       console.error('Error deleting lesson plan:', error);
-    }
-  };
-
-  const updateAccommodations = async (newAccommodations) => {
-    if (!selectedClassId || !db || !userId) return;
-    
-    try {
-      const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId);
-      await updateDoc(docRef, { accommodations: newAccommodations });
-    } catch (error) {
-      console.error('Error updating accommodations:', error);
     }
   };
 
@@ -625,162 +593,4 @@ export default function App() {
   };
 
   if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-          <div className="flex items-center space-x-3 text-red-600 mb-4">
-            <AlertCircle className="h-6 w-6" />
-            <h2 className="text-lg font-semibold">Connection Error</h2>
-          </div>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <div className="flex items-center space-x-3">
-            <BrainCircuit className="h-8 w-8 text-indigo-600" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">IEP Harmony</h1>
-              <p className="text-gray-600">AI-Powered IEP Accommodation Analysis</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <FileText className="h-5 w-5 mr-2 text-indigo-600" />
-                  Classes
-                </h2>
-                <button
-                  onClick={() => setAddClassModalOpen(true)}
-                  className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-              
-              <div className="space-y-2">
-                {sortedClasses.map(cls => {
-                  const isSelected = selectedClassId === cls.id;
-                  const classStyle = isSelected ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50';
-                  
-                  return (
-                    <div
-                      key={cls.id}
-                      className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${classStyle}`}
-                      onClick={() => setSelectedClassId(cls.id)}
-                    >
-                      <span className="font-medium text-gray-900">{cls.name}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setClassToDelete(cls);
-                          setDeleteClassModalOpen(true);
-                        }}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {selectedClassId && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Lesson Plans</h2>
-                  <button
-                    onClick={() => setAddLessonPlanModalOpen(true)}
-                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-                
-                <div className="space-y-2">
-                  {lessonPlans.map(lp => {
-                    const isSelected = selectedLessonPlanId === lp.id;
-                    const lpStyle = isSelected ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50';
-                    
-                    return (
-                      <div
-                        key={lp.id}
-                        className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${lpStyle}`}
-                        onClick={() => setSelectedLessonPlanId(lp.id)}
-                      >
-                        <span className="font-medium text-gray-900">{lp.name}</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setLessonPlanToDelete(lp);
-                            setDeleteLessonPlanModalOpen(true);
-                          }}
-                          className="p-1 text-red-500 hover:bg-red-50 rounded"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                <div className="mt-4">
-                  <FileUploadZone onFileUpload={handleFileUpload} fileType="lessonPlan" />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            {selectedClass && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <ListChecks className="h-5 w-5 mr-2 text-indigo-600" />
-                    IEP Accommodations
-                  </h2>
-                </div>
-                
-                <textarea
-                  value={selectedClass.accommodations || ''}
-                  onChange={(e) => handleAccommodationsChange(e.target.value)}
-                  placeholder="Enter IEP accommodations (one per line)..."
-                  className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
-                
-                <div className="mt-4">
-                  <FileUploadZone onFileUpload={handleFileUpload} fileType="accommodation" />
-                </div>
-              </div>
-            )}
-
-            {selectedLessonPlanId && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <FileText className="h-5 w-5 mr-2 text-indigo-600" />
-                    Lesson Plan Content
-                    {saveStatus === 'saving' && <span className="ml-2 text-sm text-yellow-600">Saving...</span>}
-                    {saveStatus === 'saved' && <Check className="ml-2 h-4 w-4 text-green-600" />}
-                  </h2>
-                </div>
-                
-                <textarea
-                  value={lessonPlanContent}
-                  onChange={(e) => hand
+    r
