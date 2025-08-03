@@ -188,7 +188,7 @@ export default function App() {
     if (classes.length > 0 && (!selectedClassId || !classes.some(c => c.id === selectedClassId))) {
       setSelectedClassId(sortedClasses[0].id);
     }
-  }, [classes.length, sortedClasses]);
+  }, [classes]);
 
   // Effect to load lesson plans for the selected class
   useEffect(() => {
