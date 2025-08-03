@@ -16,7 +16,7 @@ const initialLessonPlans = {
   '3': [{ id: 'lp3', name: 'Intro to Shakespeare', content: 'Objective: Introduce key themes and language in Shakespeare\'s works.' }],
 };
 
-// --- FIREBASE CONFIG (Paste your configuration object here) ---
+// --- FIREBASE CONFIG ---
 const firebaseConfig = {
   apiKey: "AIzaSyAVwrI84WWe2DCygVBeajXkSbMeUgAqKAM",
   authDomain: "iep-harmony.firebaseapp.com",
@@ -30,7 +30,7 @@ const firebaseConfig = {
 // This can be a unique name for your app instance
 const appId = 'iep-harmony-app';
 
-// UPDATED AI Analysis Function - Now calls your API endpoint
+// --- AI ANALYSIS FUNCTION - CALLS YOUR API ENDPOINT ---
 const runAIAnalysis = async (accommodations, lessonContent) => {
   try {
     console.log('Starting AI Analysis...');
@@ -277,7 +277,7 @@ export default function App() {
     };
   }, [lessonPlanContent, selectedLessonPlanId, db, userId, selectedClassId]);
 
-  // UPDATED AI Analysis function that calls the API
+  // --- AI ANALYSIS HANDLER ---
   const handleRunAIAnalysis = async () => {
     if (!selectedClass?.accommodations?.trim() || !lessonPlanContent.trim()) {
       alert('Please ensure both accommodations and lesson plan content are provided.');
@@ -305,6 +305,7 @@ export default function App() {
     }
   };
 
+  // --- FILE UPLOAD HANDLER ---
   const handleFileUpload = async (file, type) => {
     // Mock file processing - replace with actual file processing
     setTimeout(() => {
@@ -326,7 +327,7 @@ export default function App() {
     }, 1000);
   };
 
-  // Modal handlers
+  // --- MODAL HANDLERS ---
   const handleAddClass = async () => {
     if (!newClassName.trim() || !db || !userId) return;
     
