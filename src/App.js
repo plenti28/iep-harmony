@@ -4,7 +4,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, writeBatch, updateDoc } from 'firebase/firestore';
 
-// --- INITIAL STATE ---
 const initialClasses = [
   { id: '1', name: 'Period 1 - English 9', accommodations: 'Extended time on tests (1.5x)\nProvide notes/slides in advance\nRequires text-to-speech software' },
   { id: '2', name: 'Period 3 - Creative Writing', accommodations: 'Option for verbal responses\nUse of spell-checker\nGraphic organizer for multi-step projects' },
@@ -17,7 +16,6 @@ const initialLessonPlans = {
   '3': [{ id: 'lp3', name: 'Intro to Shakespeare', content: 'Objective: Introduce key themes and language in Shakespeare\'s works.' }]
 };
 
-// --- FIREBASE CONFIG ---
 const firebaseConfig = {
   apiKey: "AIzaSyAVwrI84WWe2DCygVBeajXkSbMeUgAqKAM",
   authDomain: "iep-harmony.firebaseapp.com",
@@ -30,7 +28,6 @@ const firebaseConfig = {
 
 const appId = 'iep-harmony-app';
 
-// --- AI ANALYSIS FUNCTION ---
 const runAIAnalysis = async (accommodations, lessonContent) => {
   try {
     console.log('Starting AI Analysis...');
@@ -43,8 +40,6 @@ const runAIAnalysis = async (accommodations, lessonContent) => {
 
     if (!response.ok) {
       console.error('API Response Error:', response.status, response.statusText);
-      const errorText = await response.text();
-      console.error('Error details:', errorText);
       throw new Error(`AI Analysis failed: ${response.status}`);
     }
 
@@ -58,7 +53,6 @@ const runAIAnalysis = async (accommodations, lessonContent) => {
   }
 };
 
-// --- COMPONENTS ---
 const FileUploadZone = ({ onFileUpload, fileType }) => {
   const [isDragging, setIsDragging] = useState(false);
   
@@ -83,15 +77,13 @@ const FileUploadZone = ({ onFileUpload, fileType }) => {
     }
   };
 
-  const dragClass = isDragging ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400';
-
   return (
     <div 
       onDragEnter={handleDrag} 
       onDragLeave={handleDrag} 
       onDragOver={handleDrag} 
       onDrop={handleDrop} 
-      className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${dragClass}`}
+      className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${isDragging ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400'}`}
     >
       <input 
         type="file" 
@@ -141,23 +133,20 @@ const Notification = ({ notification, onClose }) => {
     }
   }, [notification, onClose]);
 
-  const getNotificationClass = (type) => {
-    const baseClass = "fixed top-4 right-4 p-3 rounded-lg shadow-lg z-50 max-w-sm flex items-center justify-between";
-    
-    switch (type) {
-      case 'success':
-        return `${baseClass} bg-green-500 text-white`;
-      case 'error':
-        return `${baseClass} bg-red-500 text-white`;
-      case 'info':
-        return `${baseClass} bg-blue-500 text-white`;
-      default:
-        return `${baseClass} bg-gray-500 text-white`;
-    }
-  };
+  let notificationClass = "fixed top-4 right-4 p-3 rounded-lg shadow-lg z-50 max-w-sm flex items-center justify-between";
+  
+  if (notification.type === 'success') {
+    notificationClass += " bg-green-500 text-white";
+  } else if (notification.type === 'error') {
+    notificationClass += " bg-red-500 text-white";
+  } else if (notification.type === 'info') {
+    notificationClass += " bg-blue-500 text-white";
+  } else {
+    notificationClass += " bg-gray-500 text-white";
+  }
 
   return (
-    <div className={getNotificationClass(notification.type)}>
+    <div className={notificationClass}>
       <span className="flex-1">{notification.message}</span>
       <button 
         onClick={onClose}
@@ -169,7 +158,6 @@ const Notification = ({ notification, onClose }) => {
   );
 };
 
-// --- MAIN APP COMPONENT ---
 export default function App() {
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
@@ -210,7 +198,6 @@ export default function App() {
 
   const clearNotification = () => setNotification(null);
 
-  // --- FIREBASE INITIALIZATION ---
   useEffect(() => {
     try {
       if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("PASTE_YOUR")) {
@@ -593,4 +580,403 @@ export default function App() {
   };
 
   if (error) {
-    r
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
+          <div className="flex items-center space-x-3 text-red-600 mb-4">
+            <AlertCircle className="h-6 w-6" />
+            <h2 className="text-lg font-semibold">Connection Error</h2>
+          </div>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+          <div className="flex items-center space-x-3">
+            <BrainCircuit className="h-8 w-8 text-indigo-600" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">IEP Harmony</h1>
+              <p className="text-gray-600">AI-Powered IEP Accommodation Analysis</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <FileText className="h-5 w-5 mr-2 text-indigo-600" />
+                  Classes
+                </h2>
+                <button
+                  onClick={() => setAddClassModalOpen(true)}
+                  className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="space-y-2">
+                {sortedClasses.map(cls => (
+                  <div
+                    key={cls.id}
+                    className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${selectedClassId === cls.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50'}`}
+                    onClick={() => setSelectedClassId(cls.id)}
+                  >
+                    <span className="font-medium text-gray-900">{cls.name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setClassToDelete(cls);
+                        setDeleteClassModalOpen(true);
+                      }}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {selectedClassId && (
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Lesson Plans</h2>
+                  <button
+                    onClick={() => setAddLessonPlanModalOpen(true)}
+                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                
+                <div className="space-y-2">
+                  {lessonPlans.map(lp => (
+                    <div
+                      key={lp.id}
+                      className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${selectedLessonPlanId === lp.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50'}`}
+                      onClick={() => setSelectedLessonPlanId(lp.id)}
+                    >
+                      <span className="font-medium text-gray-900">{lp.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLessonPlanToDelete(lp);
+                          setDeleteLessonPlanModalOpen(true);
+                        }}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="mt-4">
+                  <FileUploadZone onFileUpload={handleFileUpload} fileType="lessonPlan" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            {selectedClass && (
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <ListChecks className="h-5 w-5 mr-2 text-indigo-600" />
+                    IEP Accommodations
+                  </h2>
+                </div>
+                
+                <textarea
+                  value={selectedClass.accommodations || ''}
+                  onChange={(e) => handleAccommodationsChange(e.target.value)}
+                  placeholder="Enter IEP accommodations (one per line)..."
+                  className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+                
+                <div className="mt-4">
+                  <FileUploadZone onFileUpload={handleFileUpload} fileType="accommodation" />
+                </div>
+              </div>
+            )}
+
+            {selectedLessonPlanId && (
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <FileText className="h-5 w-5 mr-2 text-indigo-600" />
+                    Lesson Plan Content
+                    {saveStatus === 'saving' && <span className="ml-2 text-sm text-yellow-600">Saving...</span>}
+                    {saveStatus === 'saved' && <Check className="ml-2 h-4 w-4 text-green-600" />}
+                  </h2>
+                </div>
+                
+                <textarea
+                  value={lessonPlanContent}
+                  onChange={(e) => handleLessonPlanContentChange(e.target.value)}
+                  placeholder="Enter your lesson plan content..."
+                  className="w-full h-48 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <BrainCircuit className="h-5 w-5 mr-2 text-indigo-600" />
+                  AI Analysis
+                </h2>
+                <button
+                  onClick={runAnalysis}
+                  disabled={isLoading || !selectedClass?.accommodations || !lessonPlanContent}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  <BrainCircuit className="h-4 w-4" />
+                  <span>{isLoading ? 'Analyzing...' : 'Run Analysis'}</span>
+                </button>
+              </div>
+
+              {isLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+              )}
+
+              {analysisResult && (
+                <div className="space-y-4">
+                  {analysisResult.analysis.map((result, index) => {
+                    let StatusIcon = CheckCircle;
+                    let iconColor = "text-green-500";
+                    let textColor = "text-green-600";
+                    
+                    if (result.status === 'Partially Met') {
+                      StatusIcon = AlertCircle;
+                      iconColor = "text-yellow-500";
+                      textColor = "text-yellow-600";
+                    } else if (result.status === 'Not Met') {
+                      StatusIcon = XCircle;
+                      iconColor = "text-red-500";
+                      textColor = "text-red-600";
+                    }
+
+                    return (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0">
+                            <StatusIcon className={`h-5 w-5 ${iconColor}`} />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{result.accommodation}</p>
+                            <p className={`text-sm mt-1 ${textColor}`}>
+                              {result.status}
+                            </p>
+                            {result.suggestion && (
+                              <p className="text-sm text-gray-600 mt-2">{result.suggestion}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!analysisResult && !isLoading && (
+                <div className="text-center py-8 text-gray-500">
+                  <BrainCircuit className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>Select a class with accommodations and add lesson plan content to run analysis.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Modal isOpen={isAddClassModalOpen} onClose={() => setAddClassModalOpen(false)}>
+        <h3 className="text-lg font-medium mb-4">Add New Class</h3>
+        <input
+          type="text"
+          value={newClassName}
+          onChange={(e) => setNewClassName(e.target.value)}
+          placeholder="Class name"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-4"
+          onKeyPress={(e) => e.key === 'Enter' && handleAddClass()}
+        />
+        <div className="flex space-x-3">
+          <button
+            onClick={handleAddClass}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Add Class
+          </button>
+          <button
+            onClick={() => setAddClassModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isDeleteClassModalOpen} onClose={() => setDeleteClassModalOpen(false)}>
+        <h3 className="text-lg font-medium mb-4">Delete Class</h3>
+        <p className="text-gray-600 mb-4">
+          Are you sure you want to delete "{classToDelete?.name}"? This will also delete all associated lesson plans.
+        </p>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleDeleteClass}
+            className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setDeleteClassModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isAddLessonPlanModalOpen} onClose={() => setAddLessonPlanModalOpen(false)}>
+        <h3 className="text-lg font-medium mb-4">Add New Lesson Plan</h3>
+        <input
+          type="text"
+          value={newLessonPlanName}
+          onChange={(e) => setNewLessonPlanName(e.target.value)}
+          placeholder="Lesson plan name"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-4"
+          onKeyPress={(e) => e.key === 'Enter' && handleAddLessonPlan()}
+        />
+        <div className="flex space-x-3">
+          <button
+            onClick={handleAddLessonPlan}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Add Lesson Plan
+          </button>
+          <button
+            onClick={() => setAddLessonPlanModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isDeleteLessonPlanModalOpen} onClose={() => setDeleteLessonPlanModalOpen(false)}>
+        <h3 className="text-lg font-medium mb-4">Delete Lesson Plan</h3>
+        <p className="text-gray-600 mb-4">
+          Are you sure you want to delete "{lessonPlanToDelete?.name}"?
+        </p>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleDeleteLessonPlan}
+            className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setDeleteLessonPlanModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isUploadAccommodationModalOpen} onClose={() => setUploadAccommodationModalOpen(false)}>
+        <h3 className="text-lg font-medium mb-4">Upload Accommodations</h3>
+        <p className="text-gray-600 mb-4">
+          How would you like to handle the uploaded accommodation content?
+        </p>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleUploadAccommodation}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Add to Existing
+          </button>
+          <button
+            onClick={replaceAccommodations}
+            className="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
+          >
+            Replace All
+          </button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isUploadLessonPlanModalOpen} onClose={() => setUploadLessonPlanModalOpen(false)}>
+        <h3 className="text-lg font-medium mb-4">Upload Lesson Plan</h3>
+        <p className="text-gray-600 mb-4">
+          How would you like to handle the uploaded lesson plan content?
+        </p>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleUploadLessonPlan}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Add to Existing
+          </button>
+          <button
+            onClick={replaceLessonPlan}
+            className="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
+          >
+            Replace All
+          </button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isRenameAndUploadModalOpen} onClose={() => setRenameAndUploadModalOpen(false)}>
+        <h3 className="text-lg font-medium mb-4">Create New Lesson Plan</h3>
+        <input
+          type="text"
+          value={renameLessonPlanTitle}
+          onChange={(e) => setRenameLessonPlanTitle(e.target.value)}
+          placeholder="Lesson plan title"
+          className="w-full p-3 border border-gray-300 rounded-lg mb-4"
+          onKeyPress={(e) => e.key === 'Enter' && handleRenameAndUpload()}
+        />
+        <div className="flex space-x-3">
+          <button
+            onClick={handleRenameAndUpload}
+            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            Create
+          </button>
+          <button
+            onClick={() => setRenameAndUploadModalOpen(false)}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
+
+      {notification && (
+        <Notification 
+          notification={notification} 
+          onClose={clearNotification} 
+        />
+      )}
+    </div>
+  );
+}
