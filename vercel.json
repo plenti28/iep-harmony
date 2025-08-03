@@ -2,6 +2,9 @@
   "functions": {
     "api/ai-analysis.js": {
       "maxDuration": 30
+    },
+    "api/upload.js": {
+      "maxDuration": 30
     }
   }
 }
