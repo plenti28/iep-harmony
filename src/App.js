@@ -31,7 +31,7 @@ const firebaseConfig = {
 // This can be a unique name for your app instance
 const appId = 'iep-harmony-app';
 
-// --- AI ANALYSIS FUNCTION - CALLS YOUR API ENDPOINT ---
+// --- AI ANALYSIS FUNCTION ---
 const runAIAnalysis = async (accommodations, lessonContent) => {
   try {
     console.log('Starting AI Analysis...');
@@ -61,11 +61,7 @@ const runAIAnalysis = async (accommodations, lessonContent) => {
 
   } catch (error) {
     console.error('AI Analysis Error:', error);
-    
-    // Show user-friendly error message
     alert(`AI Analysis encountered an error: ${error.message}. Please try again or contact support if the issue persists.`);
-    
-    // Return empty array instead of throwing to prevent UI crash
     return [];
   }
 };
@@ -84,12 +80,18 @@ const FileUploadZone = ({ onFileUpload, fileType }) => {
     e.preventDefault(); 
     e.stopPropagation(); 
     setIsDragging(false);
-    if (e.dataTransfer.files?.[0]) onFileUpload(e.dataTransfer.files[0], fileType);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      onFileUpload(e.dataTransfer.files[0], fileType);
+    }
   };
   
   const handleChange = (e) => { 
-    if (e.target.files?.[0]) onFileUpload(e.target.files[0], fileType); 
+    if (e.target.files && e.target.files[0]) {
+      onFileUpload(e.target.files[0], fileType);
+    }
   };
+
+  const dragClass = isDragging ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400';
 
   return (
     <div 
@@ -97,9 +99,7 @@ const FileUploadZone = ({ onFileUpload, fileType }) => {
       onDragLeave={handleDrag} 
       onDragOver={handleDrag} 
       onDrop={handleDrop} 
-      className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${
-        isDragging ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400'
-      }`}
+      className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${dragClass}`}
     >
       <input 
         type="file" 
@@ -141,34 +141,32 @@ const Modal = ({ isOpen, onClose, children }) => {
 const Notification = ({ notification, onClose }) => {
   if (!notification) return null;
 
-  // Auto-close after 5 seconds
   useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => {
         onClose();
       }, 5000);
-
       return () => clearTimeout(timer);
     }
   }, [notification, onClose]);
 
-  const getNotificationStyles = (type) => {
-    const baseStyles = "fixed top-4 right-4 p-3 rounded-lg shadow-lg z-50 max-w-sm flex items-center justify-between";
+  const getNotificationClass = (type) => {
+    const baseClass = "fixed top-4 right-4 p-3 rounded-lg shadow-lg z-50 max-w-sm flex items-center justify-between";
     
     switch (type) {
       case 'success':
-        return `${baseStyles} bg-green-500 text-white`;
+        return `${baseClass} bg-green-500 text-white`;
       case 'error':
-        return `${baseStyles} bg-red-500 text-white`;
+        return `${baseClass} bg-red-500 text-white`;
       case 'info':
-        return `${baseStyles} bg-blue-500 text-white`;
+        return `${baseClass} bg-blue-500 text-white`;
       default:
-        return `${baseStyles} bg-gray-500 text-white`;
+        return `${baseClass} bg-gray-500 text-white`;
     }
   };
 
   return (
-    <div className={getNotificationStyles(notification.type)}>
+    <div className={getNotificationClass(notification.type)}>
       <span className="flex-1">{notification.message}</span>
       <button 
         onClick={onClose}
@@ -192,7 +190,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState(null);
   const [error, setError] = useState(null);
-  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle', 'saving', 'saved'
+  const [saveStatus, setSaveStatus] = useState('idle');
   
   // Firebase state
   const [db, setDb] = useState(null);
@@ -225,7 +223,7 @@ export default function App() {
   // Clear notification function
   const clearNotification = () => setNotification(null);
 
-  // --- FIREBASE INITIALIZATION & DATA LOADING ---
+  // --- FIREBASE INITIALIZATION ---
   useEffect(() => {
     try {
       if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("PASTE_YOUR")) {
@@ -238,7 +236,6 @@ export default function App() {
       const firestore = getFirestore(app);
       setDb(firestore);
 
-      // Auth state listener
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
           setUserId(user.uid);
@@ -297,7 +294,6 @@ export default function App() {
     if (selectedLessonPlan) {
       setLessonPlanContent(selectedLessonPlan.content || '');
       
-      // Load analysis result if it exists
       if (selectedLessonPlan.analysisResult) {
         try {
           setAnalysisResult(JSON.parse(selectedLessonPlan.analysisResult));
@@ -321,7 +317,6 @@ export default function App() {
     try {
       const batch = writeBatch(db);
       
-      // Add initial classes
       initialClasses.forEach(classData => {
         const classRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', classData.id);
         batch.set(classRef, { name: classData.name, accommodations: classData.accommodations });
@@ -329,7 +324,6 @@ export default function App() {
 
       await batch.commit();
 
-      // Add initial lesson plans
       const lessonPlanBatch = writeBatch(db);
       Object.entries(initialLessonPlans).forEach(([classId, lessonPlans]) => {
         lessonPlans.forEach(lessonPlan => {
@@ -408,7 +402,6 @@ export default function App() {
         const analysisData = { analysis: results };
         setAnalysisResult(analysisData);
 
-        // Save to Firebase
         if (db && userId && selectedClassId && selectedLessonPlanId) {
           const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
           await updateDoc(docRef, { analysisResult: JSON.stringify(analysisData) });
@@ -421,19 +414,16 @@ export default function App() {
     }
   };
 
-  // --- REAL FILE UPLOAD HANDLER ---
+  // --- FILE UPLOAD HANDLER ---
   const handleFileUpload = async (file, type) => {
     try {
-      // Show loading notification
       setNotification({
         type: 'info',
         message: `Processing ${file.name}...`
       });
 
-      // Clear any previous errors
       setError(null);
 
-      // Validate file type
       const allowedTypes = ['.pdf', '.docx'];
       const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
       
@@ -441,25 +431,21 @@ export default function App() {
         throw new Error('Unsupported file type. Please upload a PDF or DOCX file.');
       }
 
-      // Validate file size (10MB limit)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      const maxSize = 10 * 1024 * 1024;
       if (file.size > maxSize) {
         throw new Error('File too large. Maximum size is 10MB.');
       }
 
-      // Create FormData
       const formData = new FormData();
       formData.append('file', file);
 
       console.log(`Processing file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-      // Send to API endpoint
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
 
-      // Handle response
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
@@ -468,20 +454,17 @@ export default function App() {
       const result = await response.json();
       const extractedContent = result.text;
       
-      // Log success
       console.log(`Successfully processed ${file.name}:`, {
         originalSize: file.size,
         extractedLength: extractedContent.length,
         processingTime: result.metadata?.processingTime
       });
 
-      // Success notification
       setNotification({
         type: 'success',
         message: `Successfully processed ${file.name} (${(extractedContent.length / 1000).toFixed(1)}k characters extracted)`
       });
 
-      // Handle the extracted content based on type
       if (type === 'accommodation') {
         setPendingFile({ content: extractedContent, type });
         setUploadAccommodationModalOpen(true);
@@ -664,7 +647,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
           <div className="flex items-center space-x-3">
             <BrainCircuit className="h-8 w-8 text-indigo-600" />
@@ -676,9 +658,7 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Classes & Lesson Plans */}
           <div className="space-y-6">
-            {/* Classes */}
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -694,31 +674,33 @@ export default function App() {
               </div>
               
               <div className="space-y-2">
-                {sortedClasses.map(cls => (
-                  <div
-                    key={cls.id}
-                    className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${
-                      selectedClassId === cls.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50'
-                    }`}
-                    onClick={() => setSelectedClassId(cls.id)}
-                  >
-                    <span className="font-medium text-gray-900">{cls.name}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setClassToDelete(cls);
-                        setDeleteClassModalOpen(true);
-                      }}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                {sortedClasses.map(cls => {
+                  const isSelected = selectedClassId === cls.id;
+                  const classStyle = isSelected ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50';
+                  
+                  return (
+                    <div
+                      key={cls.id}
+                      className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${classStyle}`}
+                      onClick={() => setSelectedClassId(cls.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                      <span className="font-medium text-gray-900">{cls.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setClassToDelete(cls);
+                          setDeleteClassModalOpen(true);
+                        }}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Lesson Plans */}
             {selectedClassId && (
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -732,27 +714,30 @@ export default function App() {
                 </div>
                 
                 <div className="space-y-2">
-                  {lessonPlans.map(lp => (
-                    <div
-                      key={lp.id}
-                      className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${
-                        selectedLessonPlanId === lp.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50'
-                      }`}
-                      onClick={() => setSelectedLessonPlanId(lp.id)}
-                    >
-                      <span className="font-medium text-gray-900">{lp.name}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLessonPlanToDelete(lp);
-                          setDeleteLessonPlanModalOpen(true);
-                        }}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                  {lessonPlans.map(lp => {
+                    const isSelected = selectedLessonPlanId === lp.id;
+                    const lpStyle = isSelected ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50';
+                    
+                    return (
+                      <div
+                        key={lp.id}
+                        className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${lpStyle}`}
+                        onClick={() => setSelectedLessonPlanId(lp.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <span className="font-medium text-gray-900">{lp.name}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLessonPlanToDelete(lp);
+                            setDeleteLessonPlanModalOpen(true);
+                          }}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
                 
                 <div className="mt-4">
@@ -762,9 +747,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Middle Column - Content */}
           <div className="space-y-6">
-            {/* Accommodations */}
             {selectedClass && (
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -787,7 +770,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Lesson Plan Content */}
             {selectedLessonPlanId && (
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -801,67 +783,4 @@ export default function App() {
                 
                 <textarea
                   value={lessonPlanContent}
-                  onChange={(e) => handleLessonPlanContentChange(e.target.value)}
-                  placeholder="Enter your lesson plan content..."
-                  className="w-full h-48 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Right Column - Analysis */}
-          <div>
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <BrainCircuit className="h-5 w-5 mr-2 text-indigo-600" />
-                  AI Analysis
-                </h2>
-                <button
-                  onClick={runAnalysis}
-                  disabled={isLoading || !selectedClass?.accommodations || !lessonPlanContent}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  <BrainCircuit className="h-4 w-4" />
-                  <span>{isLoading ? 'Analyzing...' : 'Run Analysis'}</span>
-                </button>
-              </div>
-
-              {isLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                </div>
-              )}
-
-              {analysisResult && (
-                <div className="space-y-4">
-                  {analysisResult.analysis.map((result, index) => (
-                    <div key={index} className="border rounded-lg p-4">
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0">
-                          {result.status === 'Met' && <CheckCircle className="h-5 w-5 text-green-500" />}
-                          {result.status === 'Partially Met' && <AlertCircle className="h-5 w-5 text-yellow-500" />}
-                          {result.status === 'Not Met' && <XCircle className="h-5 w-5 text-red-500" />}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">{result.accommodation}</p>
-                          <p className={`text-sm mt-1 ${
-                            result.status === 'Met' ? 'text-green-600' : 
-                            result.status === 'Partially Met' ? 'text-yellow-600' : 'text-red-600'
-                          }`}>
-                            {result.status}
-                          </p>
-                          {result.suggestion && (
-                            <p className="text-sm text-gray-600 mt-2">{result.suggestion}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {!analysisResult && !isLoading && (
-                <div className="text-center py-8 text-gray-500">
-                  <BrainCircuit className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>Select a class with accommodations and add lesson plan content to run an
+                  onChange={(e) => hand
