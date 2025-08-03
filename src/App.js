@@ -306,26 +306,147 @@ export default function App() {
   };
 
   // --- FILE UPLOAD HANDLER ---
-  const handleFileUpload = async (file, type) => {
-    // Mock file processing - replace with actual file processing
-    setTimeout(() => {
-      const mockContent = `Mock content extracted from ${file.name}\n\nThis is placeholder content. In a real implementation, this would contain the actual extracted text from the uploaded file.`;
-      
-      if (type === 'accommodation') {
-        setPendingFile({ content: mockContent, type });
-        setUploadAccommodationModalOpen(true);
-      } else if (type === 'lessonPlan') {
-        if (selectedLessonPlanId) {
-          setPendingFile({ content: mockContent, type });
-          setUploadLessonPlanModalOpen(true);
-        } else {
-          setRenameLessonPlanTitle(file.name.replace(/\.[^/.]+$/, ''));
-          setPendingFile({ content: mockContent, type });
-          setRenameAndUploadModalOpen(true);
-        }
+const handleFileUpload = async (file, type) => {
+  try {
+    // Show loading notification
+    setNotification({
+      type: 'info',
+      message: `Processing ${file.name}...`
+    });
+
+    // Clear any previous errors
+    setError(null);
+
+    // Validate file type
+    const allowedTypes = ['.pdf', '.docx'];
+    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+      throw new Error(`Unsupported file type. Please upload a PDF or DOCX file.`);
+    }
+
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      throw new Error('File too large. Maximum size is 10MB.');
+    }
+
+    // Create FormData
+    const formData = new FormData();
+    formData.append('file', file);
+
+    console.log(`Processing file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+    // Send to API endpoint
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    // Handle response
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const extractedContent = result.text;
+    
+    // Log success
+    console.log(`Successfully processed ${file.name}:`, {
+      originalSize: file.size,
+      extractedLength: extractedContent.length,
+      processingTime: result.metadata?.processingTime
+    });
+
+    // Success notification
+    setNotification({
+      type: 'success',
+      message: `Successfully processed ${file.name} (${(extractedContent.length / 1000).toFixed(1)}k characters extracted)`
+    });
+
+    // Handle the extracted content based on type
+    if (type === 'accommodation') {
+      setPendingFile({ content: extractedContent, type });
+      setUploadAccommodationModalOpen(true);
+    } else if (type === 'lessonPlan') {
+      if (selectedLessonPlanId) {
+        setPendingFile({ content: extractedContent, type });
+        setUploadLessonPlanModalOpen(true);
+      } else {
+        setRenameLessonPlanTitle(file.name.replace(/\.[^/.]+$/, ''));
+        setPendingFile({ content: extractedContent, type });
+        setRenameAndUploadModalOpen(true);
       }
-    }, 1000);
+    }
+
+  } catch (error) {
+    console.error('File upload error:', error);
+    setError(error.message);
+    setNotification({
+      type: 'error',
+      message: error.message
+    });
+  }
+};
+
+// Add this Notification component if you don't already have one
+const Notification = ({ notification, onClose }) => {
+  if (!notification) return null;
+
+  // Auto-close after 5 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [notification, onClose]);
+
+  const getNotificationStyles = (type) => {
+    const baseStyles = "fixed top-4 right-4 p-3 rounded-lg shadow-lg z-50 max-w-sm flex items-center justify-between";
+    
+    switch (type) {
+      case 'success':
+        return `${baseStyles} bg-green-500 text-white`;
+      case 'error':
+        return `${baseStyles} bg-red-500 text-white`;
+      case 'info':
+        return `${baseStyles} bg-blue-500 text-white`;
+      default:
+        return `${baseStyles} bg-gray-500 text-white`;
+    }
   };
+
+  return (
+    <div className={getNotificationStyles(notification.type)}>
+      <span className="flex-1">{notification.message}</span>
+      <button 
+        onClick={onClose}
+        className="ml-3 text-white hover:text-gray-200 font-bold text-lg leading-none"
+      >
+        ×
+      </button>
+    </div>
+  );
+};
+
+// Update your notification state management in the main App component
+// Add this to your state declarations if you don't have it:
+const [notification, setNotification] = useState(null);
+
+// Add this function to clear notifications
+const clearNotification = () => setNotification(null);
+
+// Add the Notification component to your render return, typically near the end:
+// {notification && (
+//   <Notification 
+//     notification={notification} 
+//     onClose={clearNotification} 
+//   />
+// )}
 
   // --- MODAL HANDLERS ---
   const handleAddClass = async () => {
