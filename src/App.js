@@ -188,7 +188,7 @@ export default function App() {
     if (classes.length > 0 && (!selectedClassId || !classes.some(c => c.id === selectedClassId))) {
       setSelectedClassId(sortedClasses[0].id);
     }
-  }, [classes]);
+  }, [classes.length, sortedClasses]);
 
   // Effect to load lesson plans for the selected class
   useEffect(() => {
@@ -447,51 +447,31 @@ export default function App() {
 
     setIsLoading(true); setAnalysisResult(null); setError(null);
 
-    const prompt = `You are an expert instructional coach specializing in special education and Universal Design for Learning (UDL). Your task is to analyze a lesson plan against a list of required student accommodations. Here is the lesson plan: --- LESSON PLAN START --- ${lessonPlanContent} --- LESSON PLAN END --- Here is the list of accommodations for the class: --- ACCOMMODATIONS START --- ${accommodationsToAnalyze.join('\n')} --- ACCOMMODATIONS END --- Please perform the following task: For each accommodation, determine if the lesson plan meets it. The status must be one of three options: "Met", "Partially Met", or "Not Met". Provide a brief, one-sentence reason for your status choice. If the status is "Partially Met" or "Not Met", you MUST also provide a concrete, actionable suggestion to modify the lesson plan. Return your response as a single JSON object. Do not include any text or markdown formatting before or after the JSON object.`;
-    const schema = { type: "OBJECT", properties: { "analysis": { type: "ARRAY", items: { type: "OBJECT", properties: { "accommodation": { "type": "STRING" }, "status": { "type": "STRING", "enum": ["Met", "Partially Met", "Not Met"] }, "reason": { "type": "STRING" }, "suggestion": { "type": "STRING" } }, "propertyOrdering": ["accommodation", "status", "reason", "suggestion"], required: ["accommodation", "status", "reason"] } } }, required: ["analysis"] };
+    try {
+        const response = await fetch('/api/ai-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accommodations: accommodationsToAnalyze, lessonContent: lessonPlanContent })
+        });
 
-    // Exponential backoff for API requests
-    let attempt = 0;
-    const maxAttempts = 5;
-    while(attempt < maxAttempts) {
-        try {
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", responseSchema: schema, } };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            
-            if (response.status === 429) {
-                const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                attempt++;
-                if (attempt >= maxAttempts) {
-                    throw new Error("API is busy. Please try again later.");
-                }
-                await new Promise(resolve => setTimeout(resolve, delay));
-                continue; // Retry the request
-            }
-
-            if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
-            const result = await response.json();
-            if (result.candidates?.[0]) {
-                const jsonText = result.candidates[0].content.parts[0].text;
-                const parsedResult = JSON.parse(jsonText);
-                
-                if (db && userId && selectedClassId && selectedLessonPlanId) {
-                    const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
-                    await updateDoc(docRef, { analysisResult: JSON.stringify(parsedResult) });
-                }
-                break; // Exit loop on success
-            } else { throw new Error("Invalid response structure from API."); }
-        } catch (err) {
-            showTempNotification(`An error occurred during analysis: ${err.message}`, true);
-            break; // Exit loop on other errors
-        } finally {
-            if (attempt >= maxAttempts || !isLoading) {
-                 setIsLoading(false);
-            }
+        if (!response.ok) {
+            throw new Error(`AI Analysis failed: ${response.status}`);
         }
+
+        const data = await response.json();
+        const analysisData = { analysis: data.results };
+        setAnalysisResult(analysisData);
+
+        if (db && userId && selectedClassId && selectedLessonPlanId) {
+            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'classes', selectedClassId, 'lessonPlans', selectedLessonPlanId);
+            await updateDoc(docRef, { analysisResult: JSON.stringify(analysisData) });
+        }
+    } catch (error) {
+        console.error('AI Analysis failed:', error);
+        showTempNotification(`AI Analysis encountered an error: ${error.message}`, true);
+    } finally {
+        setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
