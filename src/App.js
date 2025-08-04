@@ -379,14 +379,21 @@ export default function App() {
     const formData = new FormData();
     formData.append("file", file);
     showTempNotification(`Uploading and processing ${file.name}...`);
-    try {
-      const response = await fetch("https://iep-harmony-backend.onrender.com/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'File upload failed'); }
-      const data = await response.json();
-      
+  try {
+  const response = await fetch("https://iep-harmony-backend.onrender.com/upload", {
+    method: "POST",
+    body: formData
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Upload failed: ${response.status} - ${errorData}`);
+  }
+
+  const data = await response.json();
+  console.log("Backend response:", data);
+} catch (error) {
+  console.error("Upload error:", error);    
       if (mode === 'replace' || mode === 'merge') {
         const current = mode === 'merge' ? (selectedClass?.accommodations || '') : '';
         handleAccommodationChange(`${current}\n${data.text}`.trim());
