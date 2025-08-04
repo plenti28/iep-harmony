@@ -377,7 +377,7 @@ export default function App() {
   
   const processFileUpload = async (file, mode) => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
     showTempNotification(`Uploading and processing ${file.name}...`);
     try {
       const response = await fetch("https://iep-harmony-backend.onrender.com/upload", {
