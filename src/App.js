@@ -700,3 +700,12 @@ style.textContent = `
   .animate-fade-in-out { animation: fade-in 0.5s ease-out forwards, fade-out 0.5s ease-in 4.5s forwards; }
 `;
 document.head.append(style);
+import SignUp from "./SignUp";
+
+function App() {
+  return (
+    <div className="App">
+      <SignUp />
+    </div>
+  );
+}
