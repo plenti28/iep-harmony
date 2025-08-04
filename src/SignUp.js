@@ -4,7 +4,7 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
-export default function SignUp() {
+export default function SignUp({ onSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [grade, setGrade] = useState("");
@@ -27,24 +27,24 @@ export default function SignUp() {
       });
 
       setMessage("✅ Account created successfully!");
+      onSuccess(); // move to main app
     } catch (error) {
-      console.error("Error signing up:", error);
       setMessage("❌ " + error.message);
     }
   };
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h2>Create an Account</h2>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        <input type="text" placeholder="Grade" value={grade} onChange={(e) => setGrade(e.target.value)} required />
-        <input type="text" placeholder="State (e.g., Rhode Island)" value={state} onChange={(e) => setState(e.target.value)} required />
-        <textarea placeholder="Class Accommodations/Modifications" value={accommodations} onChange={(e) => setAccommodations(e.target.value)} rows={4} />
+    <div style={{ padding: "2rem", maxWidth: 400, margin: "0 auto" }}>
+      <h2>Create Your Account</h2>
+      <form onSubmit={handleSubmit}>
+        <input type="email" placeholder="Email" value={email} required onChange={(e) => setEmail(e.target.value)} />
+        <input type="password" placeholder="Password" value={password} required onChange={(e) => setPassword(e.target.value)} />
+        <input type="text" placeholder="Grade" value={grade} required onChange={(e) => setGrade(e.target.value)} />
+        <input type="text" placeholder="State" value={state} required onChange={(e) => setState(e.target.value)} />
+        <textarea placeholder="Class Accommodations" value={accommodations} onChange={(e) => setAccommodations(e.target.value)} />
         <button type="submit">Sign Up</button>
+        {message && <p>{message}</p>}
       </form>
-      {message && <p>{message}</p>}
     </div>
   );
 }
