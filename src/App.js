@@ -74,6 +74,11 @@ const Modal = ({ isOpen, onClose, children }) => {
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
+  const [showSignUp, setShowSignUp] = useState(true); // set to false to skip
+
+  if (showSignUp) {
+    return <SignUp onSuccess={() => setShowSignUp(false)} />;
+  }
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [lessonPlans, setLessonPlans] = useState([]);
@@ -700,3 +705,5 @@ style.textContent = `
   .animate-fade-in-out { animation: fade-in 0.5s ease-out forwards, fade-out 0.5s ease-in 4.5s forwards; }
 `;
 document.head.append(style);
+
+import SignUp from './SignUp';
